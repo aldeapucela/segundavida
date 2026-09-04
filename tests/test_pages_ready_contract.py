@@ -27,7 +27,7 @@ class PagesReadyContractTests(unittest.TestCase):
         source = result.stdout
         self.assertIn("Segunda Vida Pages callback", source)
         self.assertIn("authentication: 'headerAuth'", source)
-        self.assertIn("options: { where:", source)
+        self.assertIn("where: expr(", source)
         self.assertIn(".add(normalizeRow).to(itemFound", source)
         self.assertIn("telegram_message_id", source)
         self.assertNotIn("resumeUrl", source)

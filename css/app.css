@@ -2665,14 +2665,18 @@ body.photo-lightbox-open {
   margin-top: 0.7rem;
 }
 
-.detail-availability {
+.detail-availability,
+.detail-condition {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   margin: 0;
+  font-weight: 650;
+}
+
+.detail-availability {
   color: var(--text-muted);
   font-size: 0.8rem;
-  font-weight: 650;
   white-space: nowrap;
 }
 
@@ -2685,6 +2689,16 @@ body.photo-lightbox-open {
   color: var(--color-primary-dark);
   font-size: 0.9rem;
   font-weight: 700;
+}
+
+.detail-condition {
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+}
+
+.detail-condition .fa-icon {
+  color: var(--color-primary);
+  font-size: 0.78rem;
 }
 
 .detail-category a,
@@ -2949,6 +2963,13 @@ body.photo-lightbox-open {
   padding-block: 0.42rem;
   font-size: 0.84rem;
   font-weight: 700;
+}
+
+.detail-condition .detail-inline-edit__control {
+  width: auto;
+  max-width: 100%;
+  padding-block: 0.42rem;
+  font-size: 0.84rem;
 }
 
 .detail-meta__item--zone .detail-inline-edit__control {

@@ -40,7 +40,7 @@
     />
     <link rel="stylesheet" href="/css/icon-fallback.css?v=sv-20260817-40" />
     <link rel="stylesheet" href="/css/tokens.css?v=sv-20260817-41" />
-    <link rel="stylesheet" href="/css/app.css?v=sv-20260827-delete-reason-v2" />
+    <link rel="stylesheet" href="/css/app.css?v=sv-20260904-condition-v1" />
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
   </head>
   <body>
@@ -156,6 +156,10 @@
           </div>
           <div class="detail-subline">
             <p class="detail-category" id="detail-category"></p>
+            <p class="detail-condition" id="detail-condition">
+              <i class="fa-solid fa-tag fa-icon" data-fallback="◆" aria-hidden="true"></i>
+              <span>Estado no indicado</span>
+            </p>
             <p class="detail-availability" id="detail-availability">
               <i class="fa-regular fa-calendar-days fa-icon" id="detail-availability-icon" data-fallback="▣" aria-hidden="true"></i>
               <span id="detail-availability-label">Disponible</span>
@@ -452,8 +456,18 @@
             </label>
           </div>
           <label class="form-field">
+            <span>Estado</span>
+            <select id="offer-condition" name="condition" required>
+              <option value="">Elige uno</option>
+              <option>Como nuevo</option>
+              <option>Bueno</option>
+              <option>Aceptable</option>
+              <option>Roto</option>
+            </select>
+          </label>
+          <label class="form-field">
             <span>Descripción <small>opcional</small></span>
-            <textarea id="offer-description" name="description" maxlength="600" rows="4" placeholder="Cuenta lo esencial: estado, medidas o algo que deba saber quien lo reciba."></textarea>
+            <textarea id="offer-description" name="description" maxlength="600" rows="4" placeholder="Cuenta lo esencial: medidas o algo que deba saber quien lo reciba."></textarea>
           </label>
           <fieldset class="form-field duration-field">
             <legend>Disponible durante</legend>
@@ -934,10 +948,11 @@
 
     <script src="/js/telegram.js?v=sv-20260820-fullscreen-v1"></script>
     <script src="/js/auth.js?v=sv-20260826-session-v2"></script>
-    <script src="/js/api.js?v=sv-20260820-progressive-v1"></script>
+    <script src="/js/item-condition.js?v=sv-20260904-condition-v1"></script>
+    <script src="/js/api.js?v=sv-20260904-condition-v1"></script>
     <script src="/js/analytics.js?v=sv-20260817-41"></script>
     <script src="/js/catalog-resilience.js?v=sv-20260821-resilience-v1"></script>
-    <script src="/js/publish-resilience.js?v=sv-20260823-idempotency-v1"></script>
-    <script src="/js/app.js?v=sv-20260829-scroll-restoration-1"></script>
+    <script src="/js/publish-resilience.js?v=sv-20260904-condition-v1"></script>
+    <script src="/js/app.js?v=sv-20260904-condition-v1"></script>
   </body>
 </html>

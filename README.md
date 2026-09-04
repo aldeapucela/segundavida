@@ -20,8 +20,8 @@ no utiliza un framework ni necesita un proceso de compilación.
 - Catálogo público de objetos disponibles, ordenado por fecha de publicación.
 - Búsqueda por texto y filtros por categoría.
 - Favoritos guardados en el navegador, disponibles sin iniciar sesión.
-- Fichas individuales con descripción, zona aproximada, persona que lo ofrece,
-  disponibilidad y hasta dos fotografías.
+- Fichas individuales con descripción, estado del objeto, zona aproximada,
+  persona que lo ofrece, disponibilidad y hasta dos fotografías.
 - Perfiles públicos (`/u/<username>/`) con todas las publicaciones de una
   persona, incluidas las entregadas, y acceso al formulario de reporte.
 - URLs públicas estables (`/i/<public_id>/`) con metadatos para buscadores y
@@ -36,9 +36,10 @@ no utiliza un framework ni necesita un proceso de compilación.
 
 La publicación se realiza dentro de Telegram para validar la identidad de la
 persona. El formulario permite indicar título, categoría, zona aproximada,
-descripción y duración de la publicación (7, 14 o 30 días), además de adjuntar
-entre una y dos fotos. Las imágenes se validan y optimizan en el navegador
-antes de enviarse.
+estado del objeto (`Como nuevo`, `Bueno`, `Aceptable` o `Roto`), descripción y
+duración de la publicación (7, 14 o 30 días), además de adjuntar entre una y
+dos fotos. Las imágenes se validan y optimizan en el navegador antes de
+enviarse.
 
 Antes de publicar se solicita el consentimiento para hacer visible el
 contenido, facilitar el contacto y ofrecer el objeto gratis. El backend valida
@@ -54,11 +55,12 @@ de nuevo la identidad, los datos y las condiciones de moderación.
 - La persona propietaria puede borrar una publicación con confirmación. El
   borrado la oculta de la plataforma sin marcarla como entregada.
 - La persona propietaria puede editar en línea el título, la descripción, la
-  categoría, la zona y las fotos de una publicación disponible. Los cambios
-  pasan por la misma moderación automática que una publicación nueva.
+  categoría, el estado del objeto, la zona y las fotos de una publicación
+  disponible. Los cambios pasan por la misma moderación automática que una
+  publicación nueva.
 - Los administradores pueden editar esos mismos campos en cualquier ficha
-  visible, aunque pertenezca a otra persona, conservando su estado y pasando
-  también por moderación.
+  visible, aunque pertenezca a otra persona, conservando su estado de
+  disponibilidad y pasando también por moderación.
 - Las publicaciones sin nombre de usuario público se mantienen visibles, pero
   no habilitan el contacto directo.
 
@@ -70,8 +72,9 @@ La aplicación se divide en tres piezas:
    servir desde GitHub Pages o desde cualquier servidor HTTP estático.
 2. **Backend de integración**: n8n expone los endpoints públicos y protegidos,
    valida `Telegram.WebApp.initData` y aplica las reglas de publicación.
-3. **Persistencia**: NocoDB almacena los objetos, el estado de disponibilidad,
-   las fotografías y los datos operativos privados.
+3. **Persistencia**: NocoDB almacena los objetos, su estado físico
+   (`condition`), el estado de disponibilidad (`status`), las fotografías y
+   los datos operativos privados.
 
 El catálogo público solo recibe una proyección segura de los datos. Los
 identificadores de Telegram, chats, hilos, mensajes y credenciales permanecen

@@ -32,6 +32,7 @@
       title: String(values?.title ?? "").trim(),
       category: String(values?.category ?? "").trim(),
       zone: String(values?.zone ?? "").trim(),
+      condition: String(values?.condition ?? "").trim(),
       description: String(values?.description ?? "").trim(),
       duration_days: Number(values?.duration_days ?? values?.duration ?? 14),
     });

@@ -22,6 +22,7 @@ const auth = window.SecondaVidaAuth;
 const api = window.SecondaVidaApi;
 const catalogResilience = window.SecondaVidaCatalogResilience;
 const publishResilience = window.SecondaVidaPublishResilience;
+const itemCondition = window.SecondaVidaItemCondition;
 const CONSENT_VERSION = "sv-publish-2026-08-17-v3";
 const MAX_OFFER_PHOTOS = 2;
 const MAX_PHOTO_BYTES = 20 * 1024 * 1024;
@@ -192,6 +193,7 @@ const detailAvailabilityIcon = document.querySelector("#detail-availability-icon
 const detailTitle = document.querySelector("#detail-title");
 const detailFavorite = document.querySelector("#detail-favorite");
 const detailCategory = document.querySelector("#detail-category");
+const detailCondition = document.querySelector("#detail-condition");
 const detailDescription = document.querySelector("#detail-description");
 const detailZone = document.querySelector("#detail-zone");
 const detailOwner = document.querySelector("#detail-owner");
@@ -2087,10 +2089,10 @@ function resetInlineEditButtons() {
   if (editCancelButton) editCancelButton.disabled = false;
 }
 
-function getInlineEditSelectOptions(selectId) {
+function getInlineEditSelectOptions(selectId, { includeEmpty = false } = {}) {
   const source = document.querySelector(`#${selectId}`);
   return source
-    ? [...source.options].filter((option) => option.value).map((option) => ({
+    ? [...source.options].filter((option) => includeEmpty || option.value).map((option) => ({
         value: option.value,
         label: option.textContent,
       }))
@@ -2217,6 +2219,7 @@ function openInlineEdit(item = state.selectedItem) {
     description: String(source.description ?? ""),
     category: String(source.category ?? "Otros"),
     zone: String(source.zone ?? "Valladolid"),
+    condition: itemCondition?.normalize(source.condition) ?? "",
     existingPhotos: getEditPhotoEntries(source),
     newFiles: [],
     previewUrls: [],
@@ -2239,6 +2242,16 @@ function openInlineEdit(item = state.selectedItem) {
   ));
   detailCategory.firstElementChild.addEventListener("change", (event) => {
     state.inlineEdit.category = event.target.value;
+  });
+
+  const conditionSelect = createInlineEditSelect(
+    getInlineEditSelectOptions("offer-condition", { includeEmpty: true }),
+    state.inlineEdit.condition,
+    "Estado",
+  );
+  detailCondition.replaceChildren(conditionSelect);
+  conditionSelect.addEventListener("change", (event) => {
+    state.inlineEdit.condition = event.target.value;
   });
 
   detailDescription.hidden = false;
@@ -2270,7 +2283,7 @@ function openInlineEdit(item = state.selectedItem) {
   markDeliveredButton.disabled = true;
   deleteItemButton.hidden = true;
   deleteItemButton.disabled = true;
-  setInlineEditMessage("Puedes cambiar el título, el texto, la categoría, la zona y las fotos.");
+  setInlineEditMessage("Puedes cambiar el título, el texto, la categoría, el estado, la zona y las fotos.");
   titleInput.focus();
 }
 
@@ -2315,8 +2328,8 @@ async function saveInlineEdit() {
     setInlineEditMessage("El título debe tener entre 3 y 80 caracteres.", "error");
     return;
   }
-  if (!edit.category || !edit.zone || description.length > 600) {
-    setInlineEditMessage("Revisa la categoría, la zona y la descripción.", "error");
+  if (!edit.category || !edit.zone || !itemCondition?.isValid(edit.condition) || description.length > 600) {
+    setInlineEditMessage("Revisa la categoría, el estado, la zona y la descripción.", "error");
     return;
   }
   if (finalPhotoCount < 1 || finalPhotoCount > MAX_OFFER_PHOTOS) {
@@ -2338,7 +2351,13 @@ async function saveInlineEdit() {
       initData: auth.getInitData(),
       item_id: edit.itemId,
       expected_updated_at: edit.baseUpdatedAt,
-      item: { title, description, category: edit.category, zone: edit.zone },
+      item: {
+        title,
+        description,
+        category: edit.category,
+        zone: edit.zone,
+        condition: edit.condition,
+      },
       keep_photo_keys: edit.existingPhotos.map((photo) => photo.key),
     }, optimizedFiles);
 
@@ -2355,6 +2374,7 @@ async function saveInlineEdit() {
       description,
       category: result.category || edit.category,
       zone: result.zone || edit.zone,
+      condition: result.condition || edit.condition,
       updatedAt: result.updated_at ?? new Date().toISOString(),
       imageUrls: returnedImageUrls.length ? returnedImageUrls : fallbackImages,
       imageUrl: result.image_url || (returnedImageUrls[0] ?? fallbackImages[0] ?? null),
@@ -2446,6 +2466,12 @@ function renderDetail(item, { live = true, error = "" } = {}) {
   categoryLink.setAttribute("aria-label", `Ver más objetos de ${item.category}`);
   categoryLink.append(createCategoryIcon(item.category), document.createTextNode(` ${item.category}`));
   detailCategory.replaceChildren(categoryLink);
+  if (detailCondition) {
+    const conditionLabel = itemCondition?.format(item.condition) ?? "Estado no indicado";
+    const label = document.createElement("span");
+    label.textContent = conditionLabel;
+    detailCondition.replaceChildren(createIconElement("fa-tag", "◆"), label);
+  }
   detailDescription.textContent = item.description || "";
   detailDescription.hidden = !item.description;
   detailZone.textContent = item.zone || "Valladolid";
@@ -3617,6 +3643,7 @@ function getPublishDraftValues() {
     title: String(formData.get("title") ?? ""),
     category: String(formData.get("category") ?? ""),
     zone: String(formData.get("zone") ?? ""),
+    condition: String(formData.get("condition") ?? ""),
     description: String(formData.get("description") ?? ""),
     duration: String(formData.get("duration") ?? "14"),
     consent: offerConsent.checked,
@@ -3742,12 +3769,14 @@ async function restorePublishDraft() {
   const title = offerForm.elements.namedItem("title");
   const category = offerForm.elements.namedItem("category");
   const zone = offerForm.elements.namedItem("zone");
+  const condition = offerForm.elements.namedItem("condition");
   const description = offerForm.elements.namedItem("description");
   const duration = offerForm.elements.namedItem("duration");
 
   if (title) title.value = values.title ?? "";
   if (category) category.value = values.category ?? "";
   if (zone) zone.value = values.zone ?? "";
+  if (condition) condition.value = itemCondition?.normalize(values.condition) ?? "";
   if (description) description.value = values.description ?? "";
   if (duration) {
     [...offerForm.querySelectorAll('input[name="duration"]')].forEach((input) => {
@@ -3769,6 +3798,7 @@ async function restorePublishDraft() {
     title: values.title,
     category: values.category,
     zone: values.zone,
+    condition: values.condition,
     description: values.description,
     duration_days: values.duration,
   });
@@ -4198,20 +4228,26 @@ async function handleOfferSubmit(event) {
     return;
   }
 
+  const formData = new FormData(offerForm);
+  const draftItem = {
+    title: String(formData.get("title") ?? "").trim(),
+    category: String(formData.get("category") ?? ""),
+    zone: String(formData.get("zone") ?? ""),
+    condition: itemCondition?.normalize(formData.get("condition")) ?? "",
+    description: String(formData.get("description") ?? "").trim(),
+    duration_days: Number(formData.get("duration") ?? 14),
+  };
+  if (!draftItem.condition) {
+    setFormState("Selecciona un estado válido para el objeto.", "error");
+    return;
+  }
+
   if (offerSubmitButton) {
     offerSubmitButton.disabled = true;
     setOfferSubmitLoading(state.offerFiles.length ? "Optimizando…" : "Publicando…");
   }
   offerForm.setAttribute("aria-busy", "true");
 
-  const formData = new FormData(offerForm);
-  const draftItem = {
-    title: String(formData.get("title") ?? "").trim(),
-    category: String(formData.get("category") ?? ""),
-    zone: String(formData.get("zone") ?? ""),
-    description: String(formData.get("description") ?? "").trim(),
-    duration_days: Number(formData.get("duration") ?? 14),
-  };
   let publicId;
   try {
     publicId = getOrCreatePublishAttempt(draftItem);
@@ -4280,6 +4316,7 @@ async function handleOfferSubmit(event) {
       description: draftItem.description,
       category: draftItem.category,
       zone: draftItem.zone,
+      condition: draftItem.condition,
       status: result.status || "available",
       createdAt: result.created_at ?? new Date().toISOString(),
       expiresAt,

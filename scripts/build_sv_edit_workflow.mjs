@@ -6,6 +6,7 @@ const incoming = $input.first() ?? {};
 const input = incoming.json ?? {};
 const binary = incoming.binary ?? {};
 const categories = new Set('Hogar|Muebles|Electrodomésticos|Infantil|Ropa|Libros|Música y cine|Tecnología|Móviles y telefonía|Informática|Deportes y ocio|Bicicletas|Juegos y videojuegos|Manualidades y coleccionismo|Jardín y bricolaje|Otros'.split('|'));
+const conditions = new Set(['Como nuevo', 'Bueno', 'Aceptable', 'Roto']);
 const zones = new Set('Arcas Reales|Arturo Eyries|Barrio España|Batallas|Belén - Pilarica|Campo Grande|Caño Argales|Circular|Ciudad de la Comunicación|Coto de Simancas|Covaresa|Cuatro de Marzo|Delicias - Arco de Ladrillo|Delicias - Canterac|El Berrocal|El Peral|El Pinar|Girón|Hospital|Huerta del Rey|La Antigua - Santa Cruz|La Farola|La Overuela|La Rubia|La Victoria|Las Flores|Las Villas - Valparaíso|Pajarillos Altos|Pajarillos Bajos|Parque Alameda - Paula López|Parquesol|Pilarica - Los Santos|Pinar de Jalón|Plaza de Toros|Plaza España|Plaza Mayor|Polígono Argales|Polígono Industrial la Mora|Polígono San Cristóbal|Puente Duero|Puente Jardín|Rondilla|San Isidro|San Pablo - San Nicolás|San Pedro Regalado|Soto de Medinilla|Urbanización El Pichón|Urbanización El Plantío|Urbanización Entrepinos|Urbanización Las Aceñas|Vadillos|Villa del Prado|Aldeamayor de San Martín|Arroyo de la Encomienda|Boecillo|Cabezón de Pisuerga|Cigales|Ciguñuela|Cistérniga|Covaresa|Corcos|Cubillas de Santa Marta|Fuensaldaña|Geria|Laguna de Duero|La Pedraja de Portillo|Mucientes|Olmos de Esgueva|Piña de Esgueva|Quintanilla de Trigueros|Renedo de Esgueva|Robladillo|San Martín de Valvení|Santovenia de Pisuerga|Simancas|Trigueros del Valle|Tudela de Duero|Valdestillas|Valoria la Buena|Viana de Cega|Villabáñez|Villanubla|Villanueva de Duero|Villanueva de los Infantes|Villarmentero de Esgueva|Villavaquerín|Wamba|Zaratán|Aguilarejo|Granja Muedra|Herrera de Duero|La Flecha|San Andrés'.split('|'));
 function output(json) { return [{ json, binary }]; }
 function invalid(error) { return output({ ok: false, valid: false, error_code: error, error }); }
@@ -22,6 +23,7 @@ const title = typeof item.title === 'string' ? item.title.trim() : '';
 const description = typeof item.description === 'string' ? item.description.trim() : '';
 const category = typeof item.category === 'string' ? item.category.trim() : '';
 const zone = typeof item.zone === 'string' ? item.zone.trim() : '';
+const condition = typeof item.condition === 'string' ? item.condition.trim() : '';
 const keepPhotoKeys = Array.isArray(body.keep_photo_keys) ? body.keep_photo_keys.map((key) => String(key).trim()).filter(Boolean) : [];
 const photoEntries = Object.entries(binary).filter(([name, file]) => /^photo_[01]$/.test(name) && file?.data);
 const size = (file) => Number(file.fileSize ?? file.size ?? (typeof file.data === 'string' ? Math.floor(file.data.length * 3 / 4) : NaN));
@@ -29,13 +31,14 @@ if (!itemId) return invalid('item_id_missing');
 if (title.length < 3 || title.length > 80) return invalid('title_invalid');
 if (!categories.has(category)) return invalid('category_invalid');
 if (!zones.has(zone)) return invalid('zone_invalid');
+if (!conditions.has(condition)) return invalid('condition_invalid');
 if (description.length > 600) return invalid('description_too_long');
 const textValue = (title + ' ' + description).toLowerCase();
 const hasBareDomain = textValue.split(" ").some((token) => { const dot = token.indexOf("."); return dot > 0 && token.length - dot > 2 && !token.startsWith("."); });
 if (textValue.includes("http://") || textValue.includes("https://") || textValue.includes("www.") || hasBareDomain) return invalid('url_not_allowed');
 if (photoEntries.length > 2) return invalid('too_many_photos');
 for (const [, file] of photoEntries) { const mime = file.mimeType ?? file.mimetype ?? ''; if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) return invalid('photo_type_invalid'); if (!Number.isFinite(size(file)) || size(file) <= 0 || size(file) > 20 * 1024 * 1024) return invalid('photo_too_large'); }
-return output({ ok: true, valid: true, mode: 'edit', initData, item_id: itemId, title, description, category, zone, expected_updated_at: String(body.expected_updated_at ?? '').trim(), keep_photo_keys: keepPhotoKeys, new_photo_count: photoEntries.length });`;
+return output({ ok: true, valid: true, mode: 'edit', initData, item_id: itemId, title, description, category, zone, condition, expected_updated_at: String(body.expected_updated_at ?? '').trim(), keep_photo_keys: keepPhotoKeys, new_photo_count: photoEntries.length });`;
 
 const authJs = String.raw`const source = $('Validate edit payload').first() ?? {};
 const response = $input.first()?.json ?? {};
@@ -74,6 +77,7 @@ const currentValues = {
   description: String(fields.description ?? '').trim(),
   category: String(fields.category ?? '').trim(),
   zone: String(fields.zone ?? '').trim(),
+  condition: String(fields.condition ?? '').trim(),
 };
 const changedFields = Object.keys(currentValues).filter((field) => request[field] !== currentValues[field]);
 const textModerationRequired = changedFields.includes('title') || changedFields.includes('description');
@@ -106,7 +110,7 @@ const baseName = String(input.json?.photo_filename ?? file.fileName ?? 'photo.jp
 return [{ json: { ...(input.json ?? {}), photo_base64: buffer.toString('base64'), photo_filename: baseName + '.jpg', photo_mime_type: 'image/jpeg' } }];`;
 const responseJs = String.raw`const base = $('Verify owner and version').first()?.json ?? {};
 const urls = Array.isArray(base.current_photo_urls) ? base.current_photo_urls : [];
-return [{ json: { ok: true, item_id: base.item_id, public_id: base.item_id, title: base.title, description: base.description, category: base.category, zone: base.zone, status: base.current_status ?? 'available', updated_at: new Date().toISOString(), image_url: urls[0] ?? null, image_urls: urls, photo_keys: base.current_photo_keys, message: 'Publicación actualizada' } }];`;
+return [{ json: { ok: true, item_id: base.item_id, public_id: base.item_id, title: base.title, description: base.description, category: base.category, zone: base.zone, condition: base.condition, status: base.current_status ?? 'available', updated_at: new Date().toISOString(), image_url: urls[0] ?? null, image_urls: urls, photo_keys: base.current_photo_keys, message: 'Publicación actualizada' } }];`;
 
 const systemPrompt = 'Eres el moderador de contenido de SegundaVida. Es una web vecinal para regalar objetos físicos legales, seguros, de propiedad de quien publica y completamente gratis. Marca not_allowed=true para medicamentos sujetos a prescripción, armas, explosivos, drogas, animales, documentos o datos personales, dinero, servicios, publicidad, ventas, trueques, objetos ilegales, peligrosos o engañosos. Marca offensive=true para desnudez sexual explícita, violencia gráfica, odio o amenazas. Marca spam=true para spam, enlaces o direcciones web. No bloquees objetos domésticos, ropa, muebles, tecnología, libros, herramientas, juguetes o bicicletas sin una señal clara. safe solo es true cuando las tres banderas son false. Devuelve únicamente el JSON solicitado.';
 const schema = JSON.stringify({ type: 'object', properties: { safe: { type: 'boolean' }, offensive: { type: 'boolean' }, spam: { type: 'boolean' }, not_allowed: { type: 'boolean' }, category: { type: 'string' }, reason: { type: 'string' } }, required: ['safe', 'offensive', 'spam', 'not_allowed', 'category', 'reason'] });
@@ -143,7 +147,7 @@ const photoChain = node({ type: '@n8n/n8n-nodes-langchain.chainLlm', version: 1.
 const evaluate = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Evaluate edit moderation', position: [896, 0], parameters: { mode: 'runOnceForAllItems', jsCode: ${js(evaluateJs)} } } });
 const approved = ifElse({ version: 2.2, config: { name: 'Edit moderation approved?', position: [1120, 0], parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'strict', version: 2 }, conditions: [{ leftValue: expr('={{ $json.moderation_ok }}'), rightValue: true, operator: { type: 'boolean', operation: 'equals' } }], combinator: 'and' } } } });
 const hasUploads = ifElse({ version: 2.2, config: { name: 'Has photos to upload?', position: [1344, 0], parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'strict', version: 2 }, conditions: [{ leftValue: expr('={{ $json.new_photo_count > 0 }}'), rightValue: true, operator: { type: 'boolean', operation: 'equals' } }], combinator: 'and' } } } });
-const updateFields = { resource: 'row', operation: 'update', ...noco, dataToSend: 'mapWithFields', id: expr('={{ $json.row_id }}'), fieldsMapper: { mappingMode: 'defineBelow', value: { title: expr('={{ $json.title }}'), description: expr('={{ $json.description }}'), category: expr('={{ $json.category }}'), zone: expr('={{ $json.zone }}'), updated_at: expr('={{ $now.toISO() }}'), photos: expr('={{ JSON.stringify($json.keep_photo_attachments) }}') }, matchingColumns: [], schema: [{ id: 'title', displayName: 'title', type: 'string' }, { id: 'description', displayName: 'description', type: 'string' }, { id: 'category', displayName: 'category', type: 'string' }, { id: 'zone', displayName: 'zone', type: 'string' }, { id: 'updated_at', displayName: 'updated_at', type: 'dateTime' }, { id: 'photos', displayName: 'photos', type: 'json' }] } };
+const updateFields = { resource: 'row', operation: 'update', ...noco, dataToSend: 'mapWithFields', id: expr('={{ $json.row_id }}'), fieldsMapper: { mappingMode: 'defineBelow', value: { title: expr('={{ $json.title }}'), description: expr('={{ $json.description }}'), category: expr('={{ $json.category }}'), zone: expr('={{ $json.zone }}'), condition: expr('={{ $json.condition }}'), updated_at: expr('={{ $now.toISO() }}'), photos: expr('={{ JSON.stringify($json.keep_photo_attachments) }}') }, matchingColumns: [], schema: [{ id: 'title', displayName: 'title', type: 'string' }, { id: 'description', displayName: 'description', type: 'string' }, { id: 'category', displayName: 'category', type: 'string' }, { id: 'zone', displayName: 'zone', type: 'string' }, { id: 'condition', displayName: 'condition', type: 'string' }, { id: 'updated_at', displayName: 'updated_at', type: 'dateTime' }, { id: 'photos', displayName: 'photos', type: 'json' }] } };
 const updateNoPhotos = node({ type: 'n8n-nodes-base.nocoDb', version: 4, config: { name: 'Update item fields and kept photos', position: [1568, 160], credentials: { nocoDbApiToken: newCredential('NocoDB Token account') }, parameters: updateFields } });
 const updateWithPhotos = node({ type: 'n8n-nodes-base.nocoDb', version: 4, config: { name: 'Update item before photo uploads', position: [1568, -160], credentials: { nocoDbApiToken: newCredential('NocoDB Token account') }, parameters: updateFields } });
 const explodeUpload = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Prepare replacement photo uploads', position: [1792, -160], parameters: { mode: 'runOnceForAllItems', jsCode: ${js(explodeUploadJs)} } } });

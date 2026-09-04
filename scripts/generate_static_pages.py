@@ -32,6 +32,7 @@ SENSITIVE_KEYS = {
 }
 PUBLIC_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{6,80}$")
 TELEGRAM_DERIVED_ID_PATTERN = re.compile(r"^(?:\d{6,80}|\d+(?:[-_]\d+)+)$")
+ITEM_CONDITIONS = frozenset({"Como nuevo", "Bueno", "Aceptable", "Roto"})
 STATIC_ITEM_DATA_PATTERN = re.compile(
     r'<script[^>]+id="static-item-data"[^>]*>(.*?)</script>',
     re.DOTALL,
@@ -110,6 +111,9 @@ def normalize_item(raw: dict[str, object]) -> dict[str, object]:
     status = str(raw.get("status") or "available").strip().lower()
     if status not in {"available", "reserved", "completed", "expired"}:
         raise fail(f"unsupported public status for {public_id}: {status}")
+    condition = str(raw.get("condition") or "").strip()
+    if condition not in ITEM_CONDITIONS:
+        condition = ""
 
     return {
         "id": public_id,
@@ -117,6 +121,7 @@ def normalize_item(raw: dict[str, object]) -> dict[str, object]:
         "description": str(raw.get("description") or "").strip()[:1000],
         "category": str(raw.get("category") or "Otros").strip()[:80],
         "zone": str(raw.get("zone") or "Valladolid").strip()[:120],
+        "condition": condition,
         "status": status,
         "created_at": raw.get("created_at") or raw.get("CreatedAt") or None,
         "expires_at": raw.get("expires_at") or None,
@@ -192,6 +197,7 @@ def static_projection(item: dict[str, object]) -> dict[str, object]:
         "description": item["description"],
         "category": item["category"],
         "zone": item["zone"],
+        "condition": item["condition"],
         "owner_display_name": item["owner_display_name"],
         "owner_username": item["owner_username"],
         "image_identity": stable_image_identity(item.get("image_url")),
@@ -359,6 +365,7 @@ def render_metadata(item: dict[str, object], site_url: str) -> str:
 def render_fallback(item: dict[str, object], site_url: str) -> str:
     image = safe_image_url(item.get("image_url"), f"{site_url.rstrip('/')}/assets/segundavida-mark.png")
     description = item["description"] or "Consulta la disponibilidad actual en Segunda Vida."
+    condition = f'Estado: {item["condition"]}' if item["condition"] else "Estado no indicado"
     return (
         "<noscript>\n"
         '  <article class="static-item-fallback" itemscope itemtype="https://schema.org/Product">\n'
@@ -366,6 +373,7 @@ def render_fallback(item: dict[str, object], site_url: str) -> str:
         f'    <h1 itemprop="name">{html.escape(str(item["title"]))}</h1>\n'
         f'    <p itemprop="description">{html.escape(description)}</p>\n'
         f'    <p>{html.escape(str(item["category"]))} · {html.escape(str(item["zone"]))}</p>\n'
+        f'    <p>{html.escape(condition)}</p>\n'
         '    <p>La disponibilidad se comprueba al abrir la publicación.</p>\n'
         "  </article>\n"
         "</noscript>"

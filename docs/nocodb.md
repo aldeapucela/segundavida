@@ -19,6 +19,7 @@ deben entrar desde el workflow de publicación o desde una importación validada
 | `description` | LongText | Sí | Descripción del objeto |
 | `category` | SingleSelect | Sí | `Hogar`, `Muebles`, `Electrodomésticos`, `Infantil`, `Ropa`, `Libros`, `Música y cine`, `Tecnología`, `Móviles y telefonía`, `Informática`, `Deportes y ocio`, `Bicicletas`, `Juegos y videojuegos`, `Manualidades y coleccionismo`, `Jardín y bricolaje`, `Otros` |
 | `zone` | SingleLineText | Sí | Zona aproximada, no dirección exacta |
+| `condition` | SingleSelect | Sí | Estado del objeto: `Como nuevo`, `Bueno`, `Aceptable`, `Roto` |
 | `owner_telegram_id` | SingleLineText | Sí | Identidad privada de Telegram |
 | `owner_display_name` | SingleLineText | Sí | Nombre público mostrado |
 | `owner_username` | SingleLineText | No | Nombre de usuario opcional |
@@ -252,6 +253,7 @@ En el nodo Code de n8n, acceder al campo de NocoDB y normalizarlo así:
   description: row.description,
   category: row.category,
   zone: row.zone,
+  condition: row.condition || null,
   status: row.status,
   created_at: row.CreatedAt,
   updated_at: row.UpdatedAt,

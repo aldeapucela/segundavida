@@ -33,6 +33,7 @@ class StaticContractTests(unittest.TestCase):
             "description": "Descripción con <script>alert(1)</script> & comillas.",
             "category": "Hogar",
             "zone": "Delicias",
+            "condition": "Bueno",
             "status": status,
             "image_url": "javascript:alert(1)",
             "owner_display_name": "Vecindad",
@@ -46,6 +47,8 @@ class StaticContractTests(unittest.TestCase):
         legacy = {key: value for key, value in self.item().items() if key != "public_id"}
         legacy["item-id"] = "legacy-001"
         self.assertEqual(normalize_item(legacy)["id"], "legacy-001")
+        self.assertEqual(normalize_item(self.item())["condition"], "Bueno")
+        self.assertEqual(normalize_item({**self.item(), "condition": "manipulado"})["condition"], "")
 
     def test_local_server_falls_back_for_profile_and_item_routes(self):
         self.assertEqual(resolve_request_path("/u/Xenopose/"), "/u/index.html")
@@ -95,6 +98,7 @@ class StaticContractTests(unittest.TestCase):
             self.assertNotIn("telegram_chat_id", page)
             self.assertNotIn("STATIC_HOME_METADATA", page)
             self.assertNotIn('property="og:title" content="Segunda Vida · Aldea Pucela"', page)
+            self.assertIn("Estado: Bueno", page)
             self.assertTrue((output / "sitemap.xml").exists())
             self.assertTrue((output / "feed.xml").exists())
             self.assertTrue((output / "robots.txt").exists())
@@ -105,6 +109,7 @@ class StaticContractTests(unittest.TestCase):
 
             embedded = page.split('id="static-item-data">', 1)[1].split("</script>", 1)[0]
             self.assertEqual(json.loads(embedded)["id"], "safe-001")
+            self.assertEqual(json.loads(embedded)["condition"], "Bueno")
             self.assertEqual(json.loads(embedded)["favorite_count"], 0)
 
     def test_favorite_count_is_normalized_and_never_negative(self):
@@ -170,8 +175,20 @@ class StaticContractTests(unittest.TestCase):
             "Normalize edited photo",
             "publication_not_allowed",
             "Regenerate static pages",
+            "condition_invalid",
+            "condition: base.condition",
         ):
             self.assertIn(marker, workflow_source)
+
+        for node_name in (
+            "Update item fields and kept photos",
+            "Update item before photo uploads",
+        ):
+            node = next(node for node in workflow["nodes"] if node["name"] == node_name)
+            self.assertEqual(
+                node["parameters"]["fieldsMapper"]["value"]["condition"],
+                "={{ $json.condition }}",
+            )
 
     def test_interest_signal_contract_is_live_and_discreet(self):
         index_source = self.template.read_text(encoding="utf-8")
@@ -665,6 +682,34 @@ class StaticContractTests(unittest.TestCase):
         self.assertIn("public_id: publicItemId", code)
         self.assertIn('"fieldName": "public_id"', json.dumps(workflow))
         self.assertIn("crypto.randomBytes(6)", code)
+
+    def test_item_condition_contract_covers_publish_detail_and_edit(self):
+        index = (ROOT / "index.html").read_text(encoding="utf-8")
+        app = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="offer-condition" name="condition" required', index)
+        self.assertIn('id="detail-condition"', index)
+        self.assertIn('condition: String(formData.get("condition") ?? "")', app)
+        self.assertIn('condition: edit.condition', app)
+        self.assertIn('Estado no indicado', app)
+        self.assertIn('condition.value = itemCondition?.normalize(values.condition) ?? ""', app)
+        self.assertIn('getInlineEditSelectOptions("offer-condition", { includeEmpty: true })', app)
+        self.assertIn("itemCondition?.format(item.condition)", app)
+        self.assertLess(index.index("/js/item-condition.js"), index.index("/js/api.js"))
+        self.assertLess(index.index("/js/item-condition.js"), index.index("/js/app.js"))
+        for condition in ("Como nuevo", "Bueno", "Aceptable", "Roto"):
+            self.assertIn(f"<option>{condition}</option>", index)
+
+        for path in (
+            ROOT / "docs" / "sv_publish_item.workflow.json",
+            ROOT / "docs" / "sv_publish_item_photos.workflow.json",
+        ):
+            workflow = json.loads(path.read_text(encoding="utf-8"))
+            code = "\n".join(
+                node.get("parameters", {}).get("jsCode", "") for node in workflow["nodes"]
+            )
+            workflow_text = json.dumps(workflow, ensure_ascii=False)
+            self.assertIn("condition_invalid", code)
+            self.assertIn('"condition"', workflow_text)
 
     def test_photo_publish_workflow_is_importable_and_has_binary_branch(self):
         workflow_path = ROOT / "docs" / "sv_publish_item_photos.workflow.json"

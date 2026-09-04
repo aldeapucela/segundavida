@@ -21,6 +21,7 @@ Antes de activarlo:
 2. Confirmar que el nodo `Create NocoDB row` conserva la credencial y la tabla
    `Segunda Vida`.
 3. En NocoDB, crear estos campos en `sv_items` antes de activar el workflow:
+   `condition` (SingleSelect con `Como nuevo`, `Bueno`, `Aceptable` y `Roto`),
    `consent_accepted` (Checkbox), `consent_version` (SingleLineText) y
    `consent_at` (DateTime).
 4. Activar el workflow.
@@ -42,6 +43,7 @@ multipart `payload`:
     "title": "Mesa auxiliar",
     "category": "Hogar",
     "zone": "Delicias - Canterac",
+    "condition": "Bueno",
     "description": "En buen estado.",
     "duration_days": 14
   },
@@ -102,6 +104,7 @@ Contrato de llamada para n8n:
     "description": "En buen estado.",
     "category": "Hogar",
     "zone": "Delicias - Canterac",
+    "condition": "Bueno",
     "status": "available",
     "expires_at": "2026-09-01T12:00:00+02:00",
     "image_url": null,

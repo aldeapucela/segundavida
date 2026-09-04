@@ -72,6 +72,7 @@ function normalizeItem(record, { privateFields = false } = {}) {
     description: fields.description ?? "",
     category: fields.category ?? "Otros",
     zone: fields.zone ?? "Valladolid",
+    condition: window.SecondaVidaItemCondition?.normalize(fields.condition) ?? "",
     ownerDisplayName: fields.owner_display_name ?? "Vecindad",
     ownerUsername: fields.owner_username ?? "",
     ownerTelegramId: privateFields ? fields.owner_telegram_id ?? "" : "",

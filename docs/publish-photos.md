@@ -183,10 +183,11 @@ galería futura.
 
 El workflow [`sv_edit_item.workflow.json`](./sv_edit_item.workflow.json) expone
 `POST /segundavida/edit`. Recibe un `payload` con `initData`, `item_id`,
-`expected_updated_at`, los campos editados y `keep_photo_keys`; las fotos nuevas
-llegan como `photo_0` y `photo_1`. El backend comprueba propietario o rol de
-administrador, estado y concurrencia optimista. El propietario solo edita una
-publicación disponible; un administrador puede editar cualquier publicación
-visible disponible, reservada, entregada o caducada. Modera siempre título y
-descripción y modera también cada foto nueva o sustituida. No cambia el
-identificador público, el estado ni la fecha de caducidad.
+`expected_updated_at`, los campos editados —incluido `condition`— y
+`keep_photo_keys`; las fotos nuevas llegan como `photo_0` y `photo_1`. El
+backend comprueba propietario o rol de administrador, estado y concurrencia
+optimista. El propietario solo edita una publicación disponible; un
+administrador puede editar cualquier publicación visible disponible,
+reservada, entregada o caducada. Modera siempre título y descripción y modera
+también cada foto nueva o sustituida. No cambia el identificador público, el
+estado operativo (`status`) ni la fecha de caducidad.
