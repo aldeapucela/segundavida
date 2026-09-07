@@ -31,22 +31,25 @@ if (!categories.has(category)) return invalid('category_invalid');
 if (!zones.has(zone)) return invalid('zone_invalid');
 if (description.length > 600) return invalid('description_too_long');
 const textValue = (title + ' ' + description).toLowerCase();
-const hasBareDomain = textValue.split(" ").some((token) => { const dot = token.indexOf("."); return dot > 0 && token.length - dot > 2 && !token.startsWith("."); });
-if (textValue.includes("http://") || textValue.includes("https://") || textValue.includes("www.") || hasBareDomain) return invalid('url_not_allowed');
+const hasUrl = /(?:https?:\/\/|www\.)\S+|\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?:[/?#]\S*)?/i.test(textValue);
+if (hasUrl) return invalid('url_not_allowed');
 if (photoEntries.length > 2) return invalid('too_many_photos');
 for (const [, file] of photoEntries) { const mime = file.mimeType ?? file.mimetype ?? ''; if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) return invalid('photo_type_invalid'); if (!Number.isFinite(size(file)) || size(file) <= 0 || size(file) > 20 * 1024 * 1024) return invalid('photo_too_large'); }
 return output({ ok: true, valid: true, mode: 'edit', initData, item_id: itemId, title, description, category, zone, expected_updated_at: String(body.expected_updated_at ?? '').trim(), keep_photo_keys: keepPhotoKeys, new_photo_count: photoEntries.length });`;
 
 const authJs = String.raw`const source = $('Validate edit payload').first() ?? {};
+const payload = source.json ?? {};
 const response = $input.first()?.json ?? {};
+if (payload.valid !== true) return [{ json: payload, binary: source.binary ?? {} }];
 if (response.valid !== true) return [{ json: { ok: false, valid: false, error_code: response.error_code ?? 'telegram_identity_invalid', error: response.error ?? 'No se ha podido validar Telegram.' }, binary: source.binary ?? {} }];
-return [{ json: { ...source.json, owner_telegram_id: String(response.telegram_id ?? response.user?.id ?? ''), is_admin: response.is_admin === true }, binary: source.binary ?? {} }];`;
+return [{ json: { ...payload, owner_telegram_id: String(response.telegram_id ?? response.user?.id ?? ''), is_admin: response.is_admin === true }, binary: source.binary ?? {} }];`;
 
 const verifyJs = String.raw`const request = $('Attach validated identity').first()?.json ?? {};
 const source = $('Attach validated identity').first() ?? {};
 const rows = $input.all();
 function output(json) { return [{ json, binary: source.binary ?? {} }]; }
 function invalid(error) { return output({ ok: false, valid: false, error_code: error, error: error === 'edit_conflict' ? 'La publicación ha cambiado. Recarga la ficha antes de volver a editarla.' : error }); }
+if (request.ok !== true || request.valid !== true) return output(request);
 function list(value) { if (Array.isArray(value)) return value; if (value && typeof value === 'object') return [value]; if (typeof value !== 'string' || !value.trim()) return []; try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : parsed && typeof parsed === 'object' ? [parsed] : []; } catch { return []; } }
 function key(value, index) { const item = typeof value === 'string' ? value : value ?? {}; return String(item.path ?? item.signedPath ?? item.url ?? item.signedUrl ?? item.title ?? 'index:' + index).trim(); }
 function url(value) { const item = typeof value === 'string' ? value : value ?? {}; const raw = String(item.url ?? item.signedUrl ?? item.path ?? item.signedPath ?? item.thumbnails?.small?.signedPath ?? '').trim(); if (raw.startsWith('http://') || raw.startsWith('https://')) return raw; if (raw.startsWith('/')) return 'https://proyectos.aldeapucela.org' + raw; if (raw.startsWith('download/') || raw.startsWith('dltemp/')) return 'https://proyectos.aldeapucela.org/' + raw; return ''; }
