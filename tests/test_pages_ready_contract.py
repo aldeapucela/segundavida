@@ -14,6 +14,8 @@ class PagesReadyContractTests(unittest.TestCase):
         self.assertIn("https://tasks.nukeador.com/webhook/segundavida/pages-ready", action)
         self.assertIn("SEGUNDAVIDA_N8N_CALLBACK_TOKEN", action)
         self.assertIn("retrying source generation", action)
+        self.assertIn('--item-id="${{ steps.source.outputs.item_id }}"', action)
+        self.assertIn('--item-id="$ITEM_ID"', action)
         self.assertNotIn("resume_url", action)
 
     def test_callback_builder_emits_valid_source_with_normalization_in_chain(self):

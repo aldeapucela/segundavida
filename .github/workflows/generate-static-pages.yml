@@ -145,7 +145,7 @@ jobs:
 
             if [ -z "${{ steps.source.outputs.item_id }}" ] || python3 scripts/verify_static_item.py \
               --site-dir generated-site \
-              --item-id "${{ steps.source.outputs.item_id }}"; then
+              --item-id="${{ steps.source.outputs.item_id }}"; then
               break
             fi
 
@@ -216,7 +216,7 @@ jobs:
           set -euo pipefail
           python3 scripts/verify_static_item.py \
             --url "https://segundavida.aldeapucela.org/i/${ITEM_ID}/" \
-            --item-id "$ITEM_ID" \
+            --item-id="$ITEM_ID" \
             --attempts 18 \
             --interval 10
 
