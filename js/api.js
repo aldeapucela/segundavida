@@ -89,6 +89,7 @@ function normalizeItem(record, { privateFields = false } = {}) {
     ownerTelegramId: privateFields ? fields.owner_telegram_id ?? "" : "",
     status,
     createdAt: fields.created_at ?? fields.CreatedAt ?? null,
+    renewedAt: fields.renewed_at ?? null,
     updatedAt: fields.updated_at ?? fields["Last modified time"] ?? fields.UpdatedAt ?? null,
     completedAt: fields.completed_at ?? null,
     expiresAt,

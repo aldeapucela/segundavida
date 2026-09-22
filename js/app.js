@@ -2905,8 +2905,12 @@ function renderStatusFilters() {
 
 function sortNewestFirst(items) {
   return [...items].sort((left, right) => {
-    const leftDate = Date.parse(String(left.createdAt ?? "").replace(" ", "T"));
-    const rightDate = Date.parse(String(right.createdAt ?? "").replace(" ", "T"));
+    const leftRenewedDate = Date.parse(String(left.renewedAt ?? "").replace(" ", "T"));
+    const rightRenewedDate = Date.parse(String(right.renewedAt ?? "").replace(" ", "T"));
+    const leftCreatedDate = Date.parse(String(left.createdAt ?? "").replace(" ", "T"));
+    const rightCreatedDate = Date.parse(String(right.createdAt ?? "").replace(" ", "T"));
+    const leftDate = Number.isFinite(leftRenewedDate) ? leftRenewedDate : leftCreatedDate;
+    const rightDate = Number.isFinite(rightRenewedDate) ? rightRenewedDate : rightCreatedDate;
     const leftTimestamp = Number.isFinite(leftDate) ? leftDate : 0;
     const rightTimestamp = Number.isFinite(rightDate) ? rightDate : 0;
 
@@ -4793,6 +4797,9 @@ async function manageItemAction(
       ...item,
       status: nextStatus,
       expiresAt: result.expires_at ?? item.expiresAt ?? null,
+      renewedAt: action === "renew"
+        ? result.renewed_at ?? new Date().toISOString()
+        : item.renewedAt ?? null,
       reservedAt: nextStatus === "reserved"
         ? result.reserved_at ?? item.reservedAt ?? new Date().toISOString()
         : null,

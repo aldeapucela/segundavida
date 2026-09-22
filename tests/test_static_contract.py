@@ -797,6 +797,15 @@ class StaticContractTests(unittest.TestCase):
         self.assertIn('renewalCount:', api_source)
         self.assertIn('expiresTimestamp <= Date.now()', api_source)
 
+    def test_renewal_bumps_catalog_order_without_replacing_original_date(self):
+        app_source = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
+        api_source = (ROOT / "js" / "api.js").read_text(encoding="utf-8")
+        self.assertIn("renewedAt: fields.renewed_at ?? null", api_source)
+        self.assertIn("createdAt: fields.created_at ?? fields.CreatedAt ?? null", api_source)
+        self.assertIn("left.renewedAt", app_source)
+        self.assertIn("right.renewedAt", app_source)
+        self.assertIn("result.renewed_at ?? new Date().toISOString()", app_source)
+
     def test_admin_permissions_contract_uses_n8n_data_table(self):
         docs = (ROOT / "docs" / "admin-permissions.md").read_text(encoding="utf-8")
         self.assertIn("Segunda Vida - Permisos", docs)
