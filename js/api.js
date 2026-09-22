@@ -60,11 +60,23 @@ function extractImageUrls(value) {
 function normalizeItem(record, { privateFields = false } = {}) {
   const fields = record?.fields ?? record ?? {};
   const favoriteCount = Number(fields.favorite_count ?? 0);
+  const renewalCount = Number(fields.renewal_count ?? 0);
   const imageUrls = [...new Set([
     ...extractImageUrls(fields.image_urls),
     ...extractImageUrls(fields.Fotos ?? fields.fotos ?? fields.photos),
   ])];
   const imageUrl = normalizeAttachmentUrl(fields.image_url) || imageUrls[0] || null;
+
+  const expiresAt = fields.expires_at ?? null;
+  const expiresTimestamp = expiresAt
+    ? Date.parse(String(expiresAt).replace(" ", "T"))
+    : NaN;
+  const rawStatus = String(fields.status ?? "hidden").toLowerCase();
+  const status = ["available", "reserved"].includes(rawStatus)
+    && Number.isFinite(expiresTimestamp)
+    && expiresTimestamp <= Date.now()
+    ? "expired"
+    : rawStatus;
 
   return {
     id: fields.public_id ?? fields["item-id"] ?? record?.public_id ?? record?.id ?? "",
@@ -75,11 +87,11 @@ function normalizeItem(record, { privateFields = false } = {}) {
     ownerDisplayName: fields.owner_display_name ?? "Vecindad",
     ownerUsername: fields.owner_username ?? "",
     ownerTelegramId: privateFields ? fields.owner_telegram_id ?? "" : "",
-    status: fields.status ?? "hidden",
+    status,
     createdAt: fields.created_at ?? fields.CreatedAt ?? null,
     updatedAt: fields.updated_at ?? fields["Last modified time"] ?? fields.UpdatedAt ?? null,
     completedAt: fields.completed_at ?? null,
-    expiresAt: fields.expires_at ?? null,
+    expiresAt,
     reservedAt: privateFields ? fields.reserved_at ?? null : null,
     reservationExpiresAt: privateFields ? fields.reservation_expires_at ?? null : null,
     imageUrl,
@@ -90,6 +102,9 @@ function normalizeItem(record, { privateFields = false } = {}) {
     interestCount: Number(fields.interest_count ?? 0),
     contactAttemptCount: Number(fields.contact_attempt_count ?? 0),
     favoriteCount: Number.isFinite(favoriteCount) ? Math.max(0, favoriteCount) : 0,
+    renewalCount: privateFields && Number.isFinite(renewalCount)
+      ? Math.max(0, Math.trunc(renewalCount))
+      : 0,
   };
 }
 
@@ -325,7 +340,9 @@ async function completeItem(payload) {
   }
 
   if (!response.ok) {
-    throw new Error(payloadResult?.error ?? `n8n respondió con HTTP ${response.status}`);
+    const error = new Error(payloadResult?.error ?? `n8n respondió con HTTP ${response.status}`);
+    error.code = payloadResult?.error_code ?? payloadResult?.error ?? `http_${response.status}`;
+    throw error;
   }
 
   const result = Array.isArray(payloadResult) ? payloadResult[0] : payloadResult;

@@ -40,7 +40,7 @@
     />
     <link rel="stylesheet" href="/css/icon-fallback.css?v=sv-20260817-40" />
     <link rel="stylesheet" href="/css/tokens.css?v=sv-20260817-41" />
-    <link rel="stylesheet" href="/css/app.css?v=sv-20260827-delete-reason-v2" />
+    <link rel="stylesheet" href="/css/app.css?v=sv-20260922-renewals-v1" />
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
   </head>
   <body>
@@ -732,6 +732,25 @@
         </div>
       </dialog>
 
+      <dialog class="reserve-item-dialog" id="renew-item-dialog" aria-labelledby="renew-item-dialog-title" aria-describedby="renew-item-dialog-copy">
+        <div class="reserve-item-dialog__panel">
+          <h2 id="renew-item-dialog-title">Renovar publicación</h2>
+          <fieldset class="reserve-item-dialog__duration">
+            <legend>¿Durante cuánto tiempo?</legend>
+            <div class="duration-options">
+              <label><input type="radio" name="renew-duration" value="7" /><span>7 días</span></label>
+              <label><input type="radio" name="renew-duration" value="14" checked /><span>14 días</span></label>
+              <label><input type="radio" name="renew-duration" value="30" /><span>30 días</span></label>
+            </div>
+          </fieldset>
+          <p id="renew-item-dialog-copy">La publicación volverá a estar visible durante 14 días.</p>
+          <div class="reserve-item-dialog__actions">
+            <button class="secondary-button" id="renew-item-dialog-cancel" type="button">Cancelar</button>
+            <button class="primary-button" id="renew-item-dialog-confirm" type="button">Renovar</button>
+          </div>
+        </div>
+      </dialog>
+
       <dialog class="camera-dialog" id="camera-dialog" aria-labelledby="camera-dialog-title">
         <div class="camera-dialog__panel">
           <div class="camera-dialog__topline">
@@ -829,6 +848,9 @@
             </button>
             <button class="posts-tab" id="posts-completed-tab" type="button" role="tab" aria-selected="false" aria-controls="posts-list" data-posts-filter="completed">
               Finalizadas <span id="posts-completed-count">0</span>
+            </button>
+            <button class="posts-tab" id="posts-expired-tab" type="button" role="tab" aria-selected="false" aria-controls="posts-list" data-posts-filter="expired">
+              Caducadas <span id="posts-expired-count">0</span>
             </button>
           </div>
           <p class="action-state posts-action-state" id="posts-action-state" aria-live="polite"></p>
@@ -934,10 +956,10 @@
 
     <script src="/js/telegram.js?v=sv-20260820-fullscreen-v1"></script>
     <script src="/js/auth.js?v=sv-20260826-session-v2"></script>
-    <script src="/js/api.js?v=sv-20260820-progressive-v1"></script>
+    <script src="/js/api.js?v=sv-20260922-renewals-v1"></script>
     <script src="/js/analytics.js?v=sv-20260817-41"></script>
     <script src="/js/catalog-resilience.js?v=sv-20260821-resilience-v1"></script>
     <script src="/js/publish-resilience.js?v=sv-20260823-idempotency-v1"></script>
-    <script src="/js/app.js?v=sv-20260829-scroll-restoration-1"></script>
+    <script src="/js/app.js?v=sv-20260922-renewals-v1"></script>
   </body>
 </html>

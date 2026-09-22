@@ -12,25 +12,44 @@
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [0, 0],
+      "position": [
+        0,
+        0
+      ],
       "id": "0f9b6a19-1c72-4de0-aab0-9e87d8ce9c11",
       "name": "Webhook"
     },
     {
       "parameters": {
-        "jsCode": "const crypto=require('crypto'); function invalid(error){return [{json:{ok:false,valid:false,error}}];} const BOT_TOKEN=String($vars.TELEGRAM_BOT_TOKEN ?? $env.TELEGRAM_BOT_TOKEN ?? '').trim(); if(!BOT_TOKEN) throw new Error('Falta configurar TELEGRAM_BOT_TOKEN en n8n.'); const input=$input.first()?.json ?? {}; let body=input.body ?? input; if(typeof body==='string'){try{body=JSON.parse(body);}catch{return invalid('invalid_json');}} const initData=typeof body.initData==='string'?body.initData.trim():''; const itemId=typeof body.item_id==='string'?body.item_id.trim():''; const action=typeof body.action==='string'?body.action.trim():'complete'; const reservationDays=Number(body.reservation_days ?? 1); if(!initData)return invalid('telegram_init_data_missing'); if(!itemId||itemId.length>120)return invalid('item_id_invalid'); if(!['complete','reopen','hide','reserve','release'].includes(action))return invalid('action_invalid'); if(action==='reserve'&&(!Number.isInteger(reservationDays)||reservationDays<1||reservationDays>30))return invalid('reservation_days_invalid'); const fields={}; try{for(const part of String(initData).split('&')){const separator=part.indexOf('=');if(separator<0)continue;const key=decodeURIComponent(part.slice(0,separator).replaceAll('+',' '));fields[key]=decodeURIComponent(part.slice(separator+1).replaceAll('+',' '));}}catch{return invalid('telegram_init_data_malformed');} const receivedHash=fields.hash ?? ''; const authDate=Number(fields.auth_date); if(!/^[a-f0-9]{64}$/i.test(receivedHash)||!Number.isInteger(authDate))return invalid('telegram_init_data_invalid'); const now=Math.floor(Date.now()/1000); if(authDate>now+60||now - authDate > 86400)return invalid('telegram_init_data_expired'); const dataCheckString=Object.keys(fields).filter(key=>key!=='hash').sort().map(key=>`${key}=${fields[key]}`).join(String.fromCharCode(10)); const secretKey=crypto.createHmac('sha256','WebAppData').update(BOT_TOKEN).digest(); const expectedHash=crypto.createHmac('sha256',secretKey).update(dataCheckString).digest('hex'); const received=Buffer.from(receivedHash,'hex'); const expected=Buffer.from(expectedHash,'hex'); if(received.length!==expected.length||!crypto.timingSafeEqual(received,expected))return invalid('telegram_identity_invalid'); let user; try{user=JSON.parse(fields.user ?? '{}');}catch{return invalid('telegram_user_invalid');} if(!user||!Number.isSafeInteger(user.id))return invalid('telegram_user_invalid'); return [{json:{ok:true,valid:true,item_id:itemId,action,reservation_days:action==='reserve'?reservationDays:null,telegram_id:String(user.id)}}];"
+        "jsCode": "const crypto = require('crypto');\nfunction invalid(error) { return [{ json: { ok: false, valid: false, error } }]; }\nconst BOT_TOKEN = String($vars.TELEGRAM_BOT_TOKEN ?? $env.TELEGRAM_BOT_TOKEN ?? '').trim();\nif (!BOT_TOKEN) throw new Error('Falta configurar TELEGRAM_BOT_TOKEN en n8n.');\nconst input = $input.first()?.json ?? {};\nlet body = input.body ?? input;\nif (typeof body === 'string') { try { body = JSON.parse(body); } catch { return invalid('invalid_json'); } }\nconst initData = typeof body.initData === 'string' ? body.initData.trim() : '';\nconst itemId = typeof body.item_id === 'string' ? body.item_id.trim() : '';\nconst action = typeof body.action === 'string' ? body.action.trim() : 'complete';\nconst reservationDays = Number(body.reservation_days ?? 1);\nconst renewalDays = Number(body.renewal_days ?? 14);\nif (!initData) return invalid('telegram_init_data_missing');\nif (!itemId || itemId.length > 120) return invalid('item_id_invalid');\nif (!['complete', 'reopen', 'hide', 'reserve', 'release', 'renew'].includes(action)) return invalid('action_invalid');\nif (action === 'reserve' && (!Number.isInteger(reservationDays) || reservationDays < 1 || reservationDays > 30)) return invalid('reservation_days_invalid');\nif (action === 'renew' && ![7, 14, 30].includes(renewalDays)) return invalid('renewal_days_invalid');\nconst fields = {};\ntry {\n  for (const part of String(initData).split('&')) {\n    const separator = part.indexOf('=');\n    if (separator < 0) continue;\n    const key = decodeURIComponent(part.slice(0, separator).replaceAll('+', ' '));\n    fields[key] = decodeURIComponent(part.slice(separator + 1).replaceAll('+', ' '));\n  }\n} catch { return invalid('telegram_init_data_malformed'); }\nconst receivedHash = fields.hash ?? '';\nconst authDate = Number(fields.auth_date);\nif (!/^[a-f0-9]{64}$/i.test(receivedHash) || !Number.isInteger(authDate)) return invalid('telegram_init_data_invalid');\nconst now = Math.floor(Date.now() / 1000);\nif (authDate > now + 60 || now - authDate > 86400) return invalid('telegram_init_data_expired');\nconst dataCheckString = Object.keys(fields).filter((key) => key !== 'hash').sort().map((key) => key + '=' + fields[key]).join(String.fromCharCode(10));\nconst secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();\nconst expectedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');\nconst received = Buffer.from(receivedHash, 'hex');\nconst expected = Buffer.from(expectedHash, 'hex');\nif (received.length !== expected.length || !crypto.timingSafeEqual(received, expected)) return invalid('telegram_identity_invalid');\nlet user;\ntry { user = JSON.parse(fields.user ?? '{}'); } catch { return invalid('telegram_user_invalid'); }\nif (!user || !Number.isSafeInteger(user.id)) return invalid('telegram_user_invalid');\nreturn [{ json: {\n  ok: true,\n  valid: true,\n  item_id: itemId,\n  action,\n  reservation_days: action === 'reserve' ? reservationDays : null,\n  renewal_days: action === 'renew' ? renewalDays : null,\n  telegram_id: String(user.id),\n} }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [224, 0],
+      "position": [
+        224,
+        0
+      ],
       "id": "ac2d4c62-2c41-42a4-a68e-7a51d8f5c9b2",
       "name": "Validate Telegram initData"
     },
     {
-      "parameters": {"conditions":{"boolean":[{"value1":"={{ $json.valid }}","operation":"isTrue"}]},"options":{}},
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.valid }}",
+              "operation": "isTrue"
+            }
+          ]
+        },
+        "options": {}
+      },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [448, 0],
+      "position": [
+        448,
+        0
+      ],
       "id": "7b1f0b0b-50f8-4bb4-9f85-82e14d7bdc0d",
       "name": "Identity valid?"
     },
@@ -38,9 +57,24 @@
       "parameters": {
         "authentication": "nocoDbApiToken",
         "operation": "search",
-        "workspaceId": {"__rl":true,"value":"wfrogvq8","mode":"list","cachedResultName":"Default Workspace"},
-        "projectId": {"__rl":true,"value":"p3amiucxfm0jzoc","mode":"list","cachedResultName":"Aldea Pucela"},
-        "table": {"__rl":true,"value":"mwk20n0679wz5fr","mode":"list","cachedResultName":"Segunda Vida"},
+        "workspaceId": {
+          "__rl": true,
+          "value": "wfrogvq8",
+          "mode": "list",
+          "cachedResultName": "Default Workspace"
+        },
+        "projectId": {
+          "__rl": true,
+          "value": "p3amiucxfm0jzoc",
+          "mode": "list",
+          "cachedResultName": "Aldea Pucela"
+        },
+        "table": {
+          "__rl": true,
+          "value": "mwk20n0679wz5fr",
+          "mode": "list",
+          "cachedResultName": "Segunda Vida"
+        },
         "returnAll": true,
         "options": {},
         "resource": "row",
@@ -48,27 +82,51 @@
       },
       "type": "n8n-nodes-base.nocoDb",
       "typeVersion": 4,
-      "position": [672, -96],
+      "position": [
+        672,
+        -96
+      ],
       "id": "3c0ab7d8-7ce2-42e3-b5f5-efc0c6bc6e17",
       "name": "Search rows",
       "alwaysOutputData": true,
-      "credentials": {"nocoDbApiToken":{"id":"t0BGosFerj8egJ4y","name":"NocoDB Token account"}}
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "t0BGosFerj8egJ4y",
+          "name": "NocoDB Token account"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const auth=$('Validate Telegram initData').first()?.json ?? {}; const rows=$input.all(); if(auth.valid!==true)return [{json:auth}]; const found=rows.map(({json})=>({json,fields:json.fields ?? json})).find(({fields})=>String(fields.public_id ?? fields['item-id'] ?? '')===String(auth.item_id)); if(!found)return [{json:{ok:false,valid:false,error:'item_not_found'}}]; const fields=found.fields; if(String(fields.owner_telegram_id ?? '')!==String(auth.telegram_id))return [{json:{ok:false,valid:false,error:'not_owner'}}]; const action=['complete','reopen','hide','reserve','release'].includes(auth.action)?auth.action:'complete'; const reservationDays=Number(auth.reservation_days ?? 1); const storedStatus=String(fields.status ?? ''); const reservationExpiresAt=fields.reservation_expires_at ?? null; const reservationExpiresTimestamp=reservationExpiresAt?new Date(String(reservationExpiresAt).replace(' ','T')).getTime():NaN; const reservationExpired=storedStatus==='reserved'&&Number.isFinite(reservationExpiresTimestamp)&&reservationExpiresTimestamp<=Date.now(); const currentStatus=reservationExpired?'available':storedStatus; if(action==='complete'&&!['available','reserved'].includes(currentStatus))return [{json:{ok:false,valid:false,error:currentStatus==='completed'?'item_already_completed':'item_not_available'}}]; if(action==='reopen'&&currentStatus!=='completed')return [{json:{ok:false,valid:false,error:'item_not_completed'}}]; if(action==='reserve'&&currentStatus!=='available')return [{json:{ok:false,valid:false,error:'item_not_available'}}]; if(action==='release'&&currentStatus!=='reserved')return [{json:{ok:false,valid:false,error:'item_not_reserved'}}]; if(action==='hide'&&!['available','reserved','completed'].includes(currentStatus))return [{json:{ok:false,valid:false,error:currentStatus==='hidden'?'item_already_hidden':'item_not_available'}}]; const rowId=fields.Id ?? found.json.Id ?? found.json.id ?? null; if(rowId===null||rowId===undefined||rowId==='')return [{json:{ok:false,valid:false,error:'nocodb_row_id_missing'}}]; const nextStatus=action==='hide'?'hidden':(['reopen','release'].includes(action)?'available':action==='reserve'?'reserved':'completed'); const completedAt=action==='hide'?(currentStatus==='completed'?fields.completed_at ?? null:null):(['reopen','release','reserve'].includes(action)?null:new Date().toISOString()); const reservedAt=nextStatus==='reserved'?new Date().toISOString():null; const nextReservationExpiresAt=nextStatus==='reserved'?new Date(Date.now()+reservationDays*24*60*60*1000).toISOString():null; return [{json:{ok:true,valid:true,Id:rowId,item_id:auth.item_id,action,status:nextStatus,completed_at:completedAt,reserved_at:reservedAt,reservation_expires_at:nextReservationExpiresAt,reservation_days:nextStatus==='reserved'?reservationDays:null,title:fields.title ?? ''}}];"
+        "jsCode": "const auth = $('Validate Telegram initData').first()?.json ?? {};\nconst rows = $input.all();\nfunction invalid(error) { return [{ json: { ok: false, valid: false, error } }]; }\nif (auth.valid !== true) return [{ json: auth }];\nconst found = rows.map(({ json }) => ({ json, fields: json.fields ?? json })).find(({ fields }) => String(fields.public_id ?? fields['item-id'] ?? '') === String(auth.item_id));\nif (!found) return invalid('item_not_found');\nconst fields = found.fields;\nif (String(fields.owner_telegram_id ?? '') !== String(auth.telegram_id)) return invalid('not_owner');\nconst action = ['complete', 'reopen', 'hide', 'reserve', 'release', 'renew'].includes(auth.action) ? auth.action : 'complete';\nconst reservationDays = Number(auth.reservation_days ?? 1);\nconst renewalDays = Number(auth.renewal_days ?? 14);\nconst storedStatus = String(fields.status ?? '').toLowerCase();\nconst now = Date.now();\nconst expiresTimestamp = fields.expires_at ? Date.parse(String(fields.expires_at).replace(' ', 'T')) : NaN;\nconst reservationExpiresTimestamp = fields.reservation_expires_at ? Date.parse(String(fields.reservation_expires_at).replace(' ', 'T')) : NaN;\nconst reservationExpired = storedStatus === 'reserved' && Number.isFinite(reservationExpiresTimestamp) && reservationExpiresTimestamp <= now;\nconst publicationExpired = storedStatus === 'expired' || (['available', 'reserved'].includes(storedStatus) && Number.isFinite(expiresTimestamp) && expiresTimestamp <= now);\nconst currentStatus = publicationExpired ? 'expired' : reservationExpired ? 'available' : storedStatus;\nconst renewalCount = Math.max(0, Math.trunc(Number(fields.renewal_count ?? 0)));\nconst hasInterest = [fields.favorite_count, fields.interest_count, fields.contact_attempt_count].some((value) => Number(value ?? 0) > 0);\nif (action === 'complete' && !['available', 'reserved'].includes(currentStatus)) return invalid(currentStatus === 'completed' ? 'item_already_completed' : 'item_not_available');\nif (action === 'reopen' && currentStatus !== 'completed') return invalid('item_not_completed');\nif (action === 'reserve' && currentStatus !== 'available') return invalid('item_not_available');\nif (action === 'release' && currentStatus !== 'reserved') return invalid('item_not_reserved');\nif (action === 'renew' && currentStatus !== 'expired') return invalid('item_not_expired');\nif (action === 'renew' && renewalCount >= 2) return invalid('renewal_limit_reached');\nif (action === 'renew' && renewalCount === 1 && !hasInterest) return invalid('renewal_interest_required');\nif (action === 'hide' && !['available', 'reserved', 'completed', 'expired'].includes(currentStatus)) return invalid(currentStatus === 'hidden' ? 'item_already_hidden' : 'item_not_available');\nconst rowId = fields.Id ?? found.json.Id ?? found.json.id ?? null;\nif (rowId === null || rowId === undefined || rowId === '') return invalid('nocodb_row_id_missing');\nconst nextStatus = action === 'hide' ? 'hidden' : ['reopen', 'release', 'renew'].includes(action) ? 'available' : action === 'reserve' ? 'reserved' : 'completed';\nconst completedAt = action === 'hide'\n  ? currentStatus === 'completed' ? fields.completed_at ?? null : null\n  : ['reopen', 'release', 'reserve', 'renew'].includes(action) ? null : new Date().toISOString();\nconst reservedAt = nextStatus === 'reserved' ? new Date().toISOString() : null;\nconst nextReservationExpiresAt = nextStatus === 'reserved' ? new Date(now + reservationDays * 24 * 60 * 60 * 1000).toISOString() : null;\nconst nextExpiresAt = action === 'renew' ? new Date(now + renewalDays * 24 * 60 * 60 * 1000).toISOString() : fields.expires_at ?? null;\nconst nextRenewalCount = action === 'renew' ? renewalCount + 1 : renewalCount;\nreturn [{ json: {\n  ok: true,\n  valid: true,\n  Id: rowId,\n  item_id: auth.item_id,\n  action,\n  status: nextStatus,\n  expires_at: nextExpiresAt,\n  renewal_count: nextRenewalCount,\n  completed_at: completedAt,\n  reserved_at: reservedAt,\n  reservation_expires_at: nextReservationExpiresAt,\n  reservation_days: nextStatus === 'reserved' ? reservationDays : null,\n  renewal_days: action === 'renew' ? renewalDays : null,\n  title: fields.title ?? '',\n} }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [896, -96],
+      "position": [
+        896,
+        -96
+      ],
       "id": "5ad7ed3b-00a9-45ae-aef8-5c80d5e7cfbd",
       "name": "Verify owner and item"
     },
     {
-      "parameters": {"conditions":{"boolean":[{"value1":"={{ $json.valid }}","operation":"isTrue"}]},"options":{}},
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.valid }}",
+              "operation": "isTrue"
+            }
+          ]
+        },
+        "options": {}
+      },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1120, -96],
+      "position": [
+        1120,
+        -96
+      ],
       "id": "b1a2c9ee-8a0f-4e42-a3a0-69f12bc98e45",
       "name": "Can update?"
     },
@@ -77,18 +135,78 @@
         "authentication": "nocoDbApiToken",
         "operation": "update",
         "id": "={{ $json.Id }}",
-        "workspaceId": {"__rl":true,"value":"wfrogvq8","mode":"list","cachedResultName":"Default Workspace"},
-        "projectId": {"__rl":true,"value":"p3amiucxfm0jzoc","mode":"list","cachedResultName":"Aldea Pucela"},
-        "table": {"__rl":true,"value":"mwk20n0679wz5fr","mode":"list","cachedResultName":"Segunda Vida"},
+        "workspaceId": {
+          "__rl": true,
+          "value": "wfrogvq8",
+          "mode": "list",
+          "cachedResultName": "Default Workspace"
+        },
+        "projectId": {
+          "__rl": true,
+          "value": "p3amiucxfm0jzoc",
+          "mode": "list",
+          "cachedResultName": "Aldea Pucela"
+        },
+        "table": {
+          "__rl": true,
+          "value": "mwk20n0679wz5fr",
+          "mode": "list",
+          "cachedResultName": "Segunda Vida"
+        },
         "fieldsMapper": {
           "mappingMode": "defineBelow",
-          "value": {"status":"={{ $json.status }}","completed_at":"={{ $json.completed_at }}","reserved_at":"={{ $json.reserved_at }}","reservation_expires_at":"={{ $json.reservation_expires_at }}"},
+          "value": {
+            "status": "={{ $json.status }}",
+            "completed_at": "={{ $json.completed_at }}",
+            "reserved_at": "={{ $json.reserved_at }}",
+            "reservation_expires_at": "={{ $json.reservation_expires_at }}",
+            "expires_at": "={{ $json.expires_at }}",
+            "renewal_count": "={{ $json.renewal_count }}"
+          },
           "matchingColumns": [],
           "schema": [
-            {"id":"status","displayName":"status","type":"string","display":true,"readOnly":false},
-            {"id":"completed_at","displayName":"completed_at","type":"dateTime","display":true,"readOnly":false},
-            {"id":"reserved_at","displayName":"reserved_at","type":"dateTime","display":true,"readOnly":false},
-            {"id":"reservation_expires_at","displayName":"reservation_expires_at","type":"dateTime","display":true,"readOnly":false}
+            {
+              "id": "status",
+              "displayName": "status",
+              "type": "string",
+              "display": true,
+              "readOnly": false
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "type": "dateTime",
+              "display": true,
+              "readOnly": false
+            },
+            {
+              "id": "reserved_at",
+              "displayName": "reserved_at",
+              "type": "dateTime",
+              "display": true,
+              "readOnly": false
+            },
+            {
+              "id": "reservation_expires_at",
+              "displayName": "reservation_expires_at",
+              "type": "dateTime",
+              "display": true,
+              "readOnly": false
+            },
+            {
+              "id": "expires_at",
+              "displayName": "expires_at",
+              "type": "dateTime",
+              "display": true,
+              "readOnly": false
+            },
+            {
+              "id": "renewal_count",
+              "displayName": "renewal_count",
+              "type": "number",
+              "display": true,
+              "readOnly": false
+            }
           ],
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
@@ -96,64 +214,252 @@
       },
       "type": "n8n-nodes-base.nocoDb",
       "typeVersion": 4,
-      "position": [1344, -192],
+      "position": [
+        1344,
+        -192
+      ],
       "id": "c85a70a7-4095-4970-a819-7cba0db3a9df",
       "name": "Update NocoDB row",
-      "credentials": {"nocoDbApiToken":{"id":"t0BGosFerj8egJ4y","name":"NocoDB Token account"}}
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "t0BGosFerj8egJ4y",
+          "name": "NocoDB Token account"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const input=$('Verify owner and item').first()?.json ?? {}; const hidden=input.action==='hide'; const reopened=['reopen','release'].includes(input.action); const reserved=input.action==='reserve'; return [{json:{ok:true,item_id:input.item_id ?? '',title:input.title ?? '',status:input.status ?? (hidden?'hidden':reopened?'available':reserved?'reserved':'completed'),completed_at:input.completed_at ?? null,reserved_at:input.reserved_at ?? null,reservation_expires_at:input.reservation_expires_at ?? null,reservation_days:input.reservation_days ?? null,message:hidden?'Publicación borrada':input.action==='reopen'?'Publicación reactivada':reserved?'Publicación reservada':input.action==='release'?'Reserva liberada':'Marcado como entregado'}}];"
+        "jsCode": "const input = $('Verify owner and item').first()?.json ?? {};\nconst hidden = input.action === 'hide';\nconst reopened = ['reopen', 'release', 'renew'].includes(input.action);\nconst reserved = input.action === 'reserve';\nconst message = hidden\n  ? 'Publicación borrada'\n  : input.action === 'renew'\n    ? 'Publicación renovada'\n    : input.action === 'reopen'\n      ? 'Publicación reactivada'\n      : reserved\n        ? 'Publicación reservada'\n        : input.action === 'release'\n          ? 'Reserva liberada'\n          : 'Marcado como entregado';\nreturn [{ json: {\n  ok: true,\n  item_id: input.item_id ?? '',\n  title: input.title ?? '',\n  status: input.status ?? (hidden ? 'hidden' : reopened ? 'available' : reserved ? 'reserved' : 'completed'),\n  expires_at: input.expires_at ?? null,\n  renewal_count: input.renewal_count ?? 0,\n  completed_at: input.completed_at ?? null,\n  reserved_at: input.reserved_at ?? null,\n  reservation_expires_at: input.reservation_expires_at ?? null,\n  reservation_days: input.reservation_days ?? null,\n  renewal_days: input.renewal_days ?? null,\n  message,\n} }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1568, -192],
+      "position": [
+        1568,
+        -192
+      ],
       "id": "ddac9377-cfec-439f-81c8-49cb15b2da2c",
       "name": "Build success response"
     },
     {
-      "parameters": {"resource":"workflow","owner":{"__rl":true,"value":"aldeapucela","mode":"list","cachedResultName":"aldeapucela"},"repository":{"__rl":true,"value":"segundavida","mode":"list","cachedResultName":"segundavida"},"workflowId":{"__rl":true,"value":336174137,"mode":"list","cachedResultName":"Generate SegundaVida static item pages"},"ref":{"__rl":true,"value":"main","mode":"list","cachedResultName":"main"}},
+      "parameters": {
+        "resource": "workflow",
+        "owner": {
+          "__rl": true,
+          "value": "aldeapucela",
+          "mode": "list",
+          "cachedResultName": "aldeapucela"
+        },
+        "repository": {
+          "__rl": true,
+          "value": "segundavida",
+          "mode": "list",
+          "cachedResultName": "segundavida"
+        },
+        "workflowId": {
+          "__rl": true,
+          "value": 336174137,
+          "mode": "list",
+          "cachedResultName": "Generate SegundaVida static item pages"
+        },
+        "ref": {
+          "__rl": true,
+          "value": "main",
+          "mode": "list",
+          "cachedResultName": "main"
+        }
+      },
       "type": "n8n-nodes-base.github",
       "typeVersion": 1.1,
-      "position": [1792, -192],
+      "position": [
+        1792,
+        -192
+      ],
       "id": "2a8b4c6d-7e8f-4a90-b1c2-d3e4f5a6b7c8",
       "name": "Dispatch static page regeneration",
       "continueOnFail": true,
-      "credentials": {"githubApi":{"id":"FNC6Y91BVAeWInuJ","name":"GitHub account"}}
+      "credentials": {
+        "githubApi": {
+          "id": "FNC6Y91BVAeWInuJ",
+          "name": "GitHub account"
+        }
+      }
     },
     {
-      "parameters": {"conditions":{"boolean":[{"value1":"={{ $json.ok }}","operation":"isTrue"}]},"options":{}},
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.ok }}",
+              "operation": "isTrue"
+            }
+          ]
+        },
+        "options": {}
+      },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2016, 0],
+      "position": [
+        2016,
+        0
+      ],
       "id": "3b9c5d7e-8f01-4a23-b4c5-d6e7f8a9b0c1",
       "name": "Update succeeded?"
     },
     {
-      "parameters": {"respondWith":"json","responseBody":"={{ $json }}","options":{}},
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [1792, 0],
+      "position": [
+        1792,
+        0
+      ],
       "id": "f6ccda22-0f0c-48dc-9a1f-6b9cb50b64ea",
       "name": "Respond to Webhook"
     }
   ],
   "connections": {
-    "Webhook":{"main":[[{"node":"Validate Telegram initData","type":"main","index":0}]]},
-    "Validate Telegram initData":{"main":[[{"node":"Identity valid?","type":"main","index":0}]]},
-    "Identity valid?":{"main":[[{"node":"Search rows","type":"main","index":0}],[{"node":"Respond to Webhook","type":"main","index":0}]]},
-    "Search rows":{"main":[[{"node":"Verify owner and item","type":"main","index":0}]]},
-    "Verify owner and item":{"main":[[{"node":"Can update?","type":"main","index":0}]]},
-    "Can update?":{"main":[[{"node":"Update NocoDB row","type":"main","index":0}],[{"node":"Respond to Webhook","type":"main","index":0}]]},
-    "Update NocoDB row":{"main":[[{"node":"Build success response","type":"main","index":0}]]},
-    "Build success response":{"main":[[{"node":"Respond to Webhook","type":"main","index":0}]]},
-    "Respond to Webhook":{"main":[[{"node":"Update succeeded?","type":"main","index":0}]]},
-    "Update succeeded?":{"main":[[{"node":"Dispatch static page regeneration","type":"main","index":0}],[]]},
-    "Dispatch static page regeneration":{"main":[[]]}
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Telegram initData",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Telegram initData": {
+      "main": [
+        [
+          {
+            "node": "Identity valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identity valid?": {
+      "main": [
+        [
+          {
+            "node": "Search rows",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search rows": {
+      "main": [
+        [
+          {
+            "node": "Verify owner and item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify owner and item": {
+      "main": [
+        [
+          {
+            "node": "Can update?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can update?": {
+      "main": [
+        [
+          {
+            "node": "Update NocoDB row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update NocoDB row": {
+      "main": [
+        [
+          {
+            "node": "Build success response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build success response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        [
+          {
+            "node": "Update succeeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update succeeded?": {
+      "main": [
+        [
+          {
+            "node": "Dispatch static page regeneration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Dispatch static page regeneration": {
+      "main": [
+        []
+      ]
+    }
   },
   "pinData": {},
   "active": false,
-  "settings": {"executionOrder":"v1"},
-  "meta": {"templateCredsSetupCompleted": true},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
   "tags": []
 }

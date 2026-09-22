@@ -267,6 +267,14 @@ def parse_rss_datetime(value: object) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def is_publicly_active(item: dict[str, object], now: datetime | None = None) -> bool:
+    if item.get("status") not in {"available", "reserved"}:
+        return False
+    expires_at = parse_rss_datetime(item.get("expires_at"))
+    current_time = now or datetime.now(timezone.utc)
+    return expires_at is None or expires_at > current_time
+
+
 def render_rss_feed(items: list[dict[str, object]], site_url: str) -> str:
     base_url = site_url.rstrip("/")
     feed_url = f"{base_url}/feed.xml"
@@ -276,6 +284,7 @@ def render_rss_feed(items: list[dict[str, object]], site_url: str) -> str:
     dated_items = [
         (item, parse_rss_datetime(item.get("created_at")))
         for item in items
+        if is_publicly_active(item)
     ]
     dated_items.sort(
         key=lambda entry: (

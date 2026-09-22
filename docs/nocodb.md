@@ -35,6 +35,7 @@ deben entrar desde el workflow de publicación o desde una importación validada
 | `interest_count` | Number | Sí | Contador agregado, valor inicial `0` |
 | `contact_attempt_count` | Number | Sí | Contador agregado de aperturas confirmadas del chat, valor inicial `0` |
 | `favorite_count` | Number | Sí | Contador aproximado de corazones, valor inicial `0` |
+| `renewal_count` | Number | Sí | Renovaciones realizadas por el autor, entero entre `0` y `2`, valor inicial `0` |
 | `consent_accepted` | Checkbox | Sí | Confirmación de aceptación de publicación y contacto |
 | `consent_version` | SingleLineText | Sí | Versión del texto aceptado por la persona |
 | `consent_at` | DateTime | Sí | Fecha generada por n8n al publicar |

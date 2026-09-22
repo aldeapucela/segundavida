@@ -1,16 +1,198 @@
 {
-  "name":"SV · Mine items",
-  "nodes":[
-    {"parameters":{"httpMethod":"POST","path":"segundavida/mine","responseMode":"responseNode","options":{"allowedOrigins":"https://segundavida.aldeapucela.org,http://localhost:8000,http://127.0.0.1:8000"}},"type":"n8n-nodes-base.webhook","typeVersion":2.1,"position":[0,0],"id":"2a0af3f0-6d53-4e8e-95fd-0bd7c2b4d9cf","name":"Webhook"},
-    {"parameters":{"jsCode":"const crypto=require('crypto'); function result(json){return [{json}];} function invalid(error){return result({ok:false,valid:false,error});} const BOT_TOKEN=String($vars.TELEGRAM_BOT_TOKEN ?? $env.TELEGRAM_BOT_TOKEN ?? '').trim(); if(!BOT_TOKEN)throw new Error('Falta configurar TELEGRAM_BOT_TOKEN en n8n.'); const input=$input.first()?.json ?? {}; let body=input.body ?? input; if(typeof body==='string'){try{body=JSON.parse(body);}catch{return invalid('invalid_json');}} const initData=typeof body.initData==='string'?body.initData.trim():''; if(!initData)return invalid('telegram_init_data_missing'); const fields={}; try{for(const part of String(initData).split('&')){const separator=part.indexOf('=');if(separator<0)continue;const key=decodeURIComponent(part.slice(0,separator).replaceAll('+',' '));fields[key]=decodeURIComponent(part.slice(separator+1).replaceAll('+',' '));}}catch{return invalid('telegram_init_data_malformed');} const receivedHash=fields.hash ?? ''; const authDate=Number(fields.auth_date); if(!/^[a-f0-9]{64}$/i.test(receivedHash)||!Number.isInteger(authDate))return invalid('telegram_init_data_invalid'); const now=Math.floor(Date.now()/1000); if(authDate>now+60||now - authDate > 86400)return invalid('telegram_init_data_expired'); const dataCheckString=Object.keys(fields).filter(key=>key!=='hash').sort().map(key=>`${key}=${fields[key]}`).join(String.fromCharCode(10)); const secretKey=crypto.createHmac('sha256','WebAppData').update(BOT_TOKEN).digest(); const expectedHash=crypto.createHmac('sha256',secretKey).update(dataCheckString).digest('hex'); const received=Buffer.from(receivedHash,'hex'); const expected=Buffer.from(expectedHash,'hex'); if(received.length!==expected.length||!crypto.timingSafeEqual(received,expected))return invalid('telegram_identity_invalid'); let user; try{user=JSON.parse(fields.user ?? '{}');}catch{return invalid('telegram_user_invalid');} if(!user||!Number.isSafeInteger(user.id))return invalid('telegram_user_invalid'); return result({ok:true,valid:true,telegram_id:String(user.id)});"},"type":"n8n-nodes-base.code","typeVersion":2,"position":[224,0],"id":"f1d8e5a1-1bf7-4b2e-a2b7-5ae2f74a1cd","name":"Validate Telegram initData"},
-    {"parameters":{"conditions":{"boolean":[{"value1":"={{ $json.valid }}","operation":"isTrue"}]},"options":{}},"type":"n8n-nodes-base.if","typeVersion":2.2,"position":[448,0],"id":"afc1f4e2-b70d-49a5-9f6f-f4b1d8a9c2e7","name":"Identity valid?"},
-    {"parameters":{"authentication":"nocoDbApiToken","operation":"search","workspaceId":{"__rl":true,"value":"wfrogvq8","mode":"list","cachedResultName":"Default Workspace"},"projectId":{"__rl":true,"value":"p3amiucxfm0jzoc","mode":"list","cachedResultName":"Aldea Pucela"},"table":{"__rl":true,"value":"mwk20n0679wz5fr","mode":"list","cachedResultName":"Segunda Vida"},"returnAll":true,"options":{},"resource":"row","downloadAttachments":true},"type":"n8n-nodes-base.nocoDb","typeVersion":4,"position":[672,-96],"id":"a4f0a7d2-5b1c-4f4d-8e77-6a6c9b2d7e15","name":"Search rows","alwaysOutputData":true,"credentials":{"nocoDbApiToken":{"id":"t0BGosFerj8egJ4y","name":"NocoDB Token account"}}},
-    {"parameters":{"jsCode":"const auth=$('Validate Telegram initData').first()?.json ?? {}; if(auth.valid!==true)return [{json:auth}]; function asAttachmentList(value){if(Array.isArray(value))return value;if(value&&typeof value==='object')return [value];if(typeof value!=='string'||!value.trim())return [];try{const parsed=JSON.parse(value);if(Array.isArray(parsed))return parsed;if(parsed&&typeof parsed==='object')return [parsed];}catch{}return [];} function attachmentUrl(value){const attachment=typeof value==='string'?value:value?.url ?? value?.signedUrl ?? value?.signed_url ?? value?.path ?? value?.signedPath ?? value?.signed_path ?? value?.thumbnails?.small?.signedPath ?? value?.thumbnails?.small?.signedUrl ?? value?.thumbnails?.card_cover?.signedPath ?? value?.thumbnails?.card_cover?.signedUrl ?? ''; const url=String(attachment).trim();if(url.startsWith('http://')||url.startsWith('https://'))return url;if(url.startsWith('/'))return 'https://proyectos.aldeapucela.org'+url;if(url.startsWith('download/')||url.startsWith('dltemp/'))return 'https://proyectos.aldeapucela.org/'+url;return '';} function imageUrlsFor(fields){const photoField=Object.entries(fields).find(([key])=>key.toLowerCase()==='photos')?.[1];return [...asAttachmentList(photoField),...asAttachmentList(fields.photos),...asAttachmentList(fields.Fotos),...asAttachmentList(fields.fotos)].map(attachmentUrl).filter(Boolean).filter((url,index,urls)=>urls.indexOf(url)===index);} const items=$input.all().map(({json})=>json.fields ?? json).filter(fields=>String(fields.owner_telegram_id ?? '')===String(auth.telegram_id)).map(fields=>{const image_urls=imageUrlsFor(fields);return {id:fields.public_id ?? fields['item-id'] ?? null,title:fields.title ?? '',description:fields.description ?? '',category:fields.category ?? 'Otros',zone:fields.zone ?? 'Valladolid',status:String(fields.status ?? 'hidden').toLowerCase(),created_at:fields.created_at ?? fields['Created time'] ?? fields.CreatedAt ?? null,updated_at:fields.updated_at ?? fields['Last modified time'] ?? fields.UpdatedAt ?? null,expires_at:fields.expires_at ?? null,completed_at:fields.completed_at ?? null,reserved_at:fields.reserved_at ?? null,reservation_expires_at:fields.reservation_expires_at ?? null,image_url:fields.image_url||image_urls[0]||null,image_urls,owner_display_name:fields.owner_display_name ?? 'Vecindad',owner_username:fields.owner_username ?? fields.owner_telegram_username ?? fields.telegram_username ?? '',owner_telegram_id:String(fields.owner_telegram_id ?? ''),interest_count:Number(fields.interest_count ?? 0)};}).filter(item=>item.id&&['available','reserved','completed'].includes(item.status)); return [{json:{ok:true,items,total:items.length}}];"},"type":"n8n-nodes-base.code","typeVersion":2,"position":[896,-96],"id":"c6d9e4f1-2b7a-4c8d-9f10-a3b5d6e7f8a9","name":"Filter owner items"},
-    {"parameters":{"respondWith":"json","responseBody":"={{ $json }}","options":{}},"type":"n8n-nodes-base.respondToWebhook","typeVersion":1.5,"position":[1120,-96],"id":"d8e3f1a2-6b4c-4d5e-9f70-a1b2c3d4e5f6","name":"Respond to Webhook"}
+  "name": "SV · Mine items",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "segundavida/mine",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://segundavida.aldeapucela.org,http://localhost:8000,http://127.0.0.1:8000"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "2a0af3f0-6d53-4e8e-95fd-0bd7c2b4d9cf",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto=require('crypto'); function result(json){return [{json}];} function invalid(error){return result({ok:false,valid:false,error});} const BOT_TOKEN=String($vars.TELEGRAM_BOT_TOKEN ?? $env.TELEGRAM_BOT_TOKEN ?? '').trim(); if(!BOT_TOKEN)throw new Error('Falta configurar TELEGRAM_BOT_TOKEN en n8n.'); const input=$input.first()?.json ?? {}; let body=input.body ?? input; if(typeof body==='string'){try{body=JSON.parse(body);}catch{return invalid('invalid_json');}} const initData=typeof body.initData==='string'?body.initData.trim():''; if(!initData)return invalid('telegram_init_data_missing'); const fields={}; try{for(const part of String(initData).split('&')){const separator=part.indexOf('=');if(separator<0)continue;const key=decodeURIComponent(part.slice(0,separator).replaceAll('+',' '));fields[key]=decodeURIComponent(part.slice(separator+1).replaceAll('+',' '));}}catch{return invalid('telegram_init_data_malformed');} const receivedHash=fields.hash ?? ''; const authDate=Number(fields.auth_date); if(!/^[a-f0-9]{64}$/i.test(receivedHash)||!Number.isInteger(authDate))return invalid('telegram_init_data_invalid'); const now=Math.floor(Date.now()/1000); if(authDate>now+60||now - authDate > 86400)return invalid('telegram_init_data_expired'); const dataCheckString=Object.keys(fields).filter(key=>key!=='hash').sort().map(key=>`${key}=${fields[key]}`).join(String.fromCharCode(10)); const secretKey=crypto.createHmac('sha256','WebAppData').update(BOT_TOKEN).digest(); const expectedHash=crypto.createHmac('sha256',secretKey).update(dataCheckString).digest('hex'); const received=Buffer.from(receivedHash,'hex'); const expected=Buffer.from(expectedHash,'hex'); if(received.length!==expected.length||!crypto.timingSafeEqual(received,expected))return invalid('telegram_identity_invalid'); let user; try{user=JSON.parse(fields.user ?? '{}');}catch{return invalid('telegram_user_invalid');} if(!user||!Number.isSafeInteger(user.id))return invalid('telegram_user_invalid'); return result({ok:true,valid:true,telegram_id:String(user.id)});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "f1d8e5a1-1bf7-4b2e-a2b7-5ae2f74a1cd",
+      "name": "Validate Telegram initData"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.valid }}",
+              "operation": "isTrue"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "afc1f4e2-b70d-49a5-9f6f-f4b1d8a9c2e7",
+      "name": "Identity valid?"
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "search",
+        "workspaceId": {
+          "__rl": true,
+          "value": "wfrogvq8",
+          "mode": "list",
+          "cachedResultName": "Default Workspace"
+        },
+        "projectId": {
+          "__rl": true,
+          "value": "p3amiucxfm0jzoc",
+          "mode": "list",
+          "cachedResultName": "Aldea Pucela"
+        },
+        "table": {
+          "__rl": true,
+          "value": "mwk20n0679wz5fr",
+          "mode": "list",
+          "cachedResultName": "Segunda Vida"
+        },
+        "returnAll": true,
+        "options": {},
+        "resource": "row",
+        "downloadAttachments": true
+      },
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 4,
+      "position": [
+        672,
+        -96
+      ],
+      "id": "a4f0a7d2-5b1c-4f4d-8e77-6a6c9b2d7e15",
+      "name": "Search rows",
+      "alwaysOutputData": true,
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "t0BGosFerj8egJ4y",
+          "name": "NocoDB Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const auth = $('Validate Telegram initData').first()?.json ?? {};\nif (auth.valid !== true) return [{ json: auth }];\nfunction asAttachmentList(value) {\n  if (Array.isArray(value)) return value;\n  if (value && typeof value === 'object') return [value];\n  if (typeof value !== 'string' || !value.trim()) return [];\n  try {\n    const parsed = JSON.parse(value);\n    if (Array.isArray(parsed)) return parsed;\n    if (parsed && typeof parsed === 'object') return [parsed];\n  } catch {}\n  return [];\n}\nfunction attachmentUrl(value) {\n  const attachment = typeof value === 'string' ? value : value?.url ?? value?.signedUrl ?? value?.signed_url ?? value?.path ?? value?.signedPath ?? value?.signed_path ?? value?.thumbnails?.small?.signedPath ?? value?.thumbnails?.small?.signedUrl ?? value?.thumbnails?.card_cover?.signedPath ?? value?.thumbnails?.card_cover?.signedUrl ?? '';\n  const url = String(attachment).trim();\n  if (url.startsWith('http://') || url.startsWith('https://')) return url;\n  if (url.startsWith('/')) return 'https://proyectos.aldeapucela.org' + url;\n  if (url.startsWith('download/') || url.startsWith('dltemp/')) return 'https://proyectos.aldeapucela.org/' + url;\n  return '';\n}\nfunction imageUrlsFor(fields) {\n  const photoField = Object.entries(fields).find(([key]) => key.toLowerCase() === 'photos')?.[1];\n  return [...asAttachmentList(photoField), ...asAttachmentList(fields.photos), ...asAttachmentList(fields.Fotos), ...asAttachmentList(fields.fotos)]\n    .map(attachmentUrl).filter(Boolean).filter((url, index, urls) => urls.indexOf(url) === index);\n}\nfunction photoKeysFor(fields) {\n  const photoField = Object.entries(fields).find(([key]) => key.toLowerCase() === 'photos')?.[1];\n  return [...asAttachmentList(photoField), ...asAttachmentList(fields.photos), ...asAttachmentList(fields.Fotos), ...asAttachmentList(fields.fotos)]\n    .map((value, index) => {\n      const attachment = typeof value === 'string' ? value : value ?? {};\n      return String(attachment.path ?? attachment.signedPath ?? attachment.signed_path ?? attachment.url ?? attachment.signedUrl ?? attachment.signed_url ?? attachment.title ?? 'index:' + index).trim();\n    })\n    .filter(Boolean).filter((key, index, keys) => keys.indexOf(key) === index);\n}\nconst now = Date.now();\nconst items = $input.all()\n  .map(({ json }) => json.fields ?? json)\n  .filter((fields) => String(fields.owner_telegram_id ?? '') === String(auth.telegram_id))\n  .map((fields) => {\n    const image_urls = imageUrlsFor(fields);\n    const photo_keys = photoKeysFor(fields);\n    const rawStatus = String(fields.status ?? 'hidden').toLowerCase();\n    const expiresTimestamp = fields.expires_at ? Date.parse(String(fields.expires_at).replace(' ', 'T')) : NaN;\n    const reservationTimestamp = fields.reservation_expires_at ? Date.parse(String(fields.reservation_expires_at).replace(' ', 'T')) : NaN;\n    const reservationExpired = rawStatus === 'reserved' && Number.isFinite(reservationTimestamp) && reservationTimestamp <= now;\n    const publicationExpired = ['available', 'reserved'].includes(rawStatus) && Number.isFinite(expiresTimestamp) && expiresTimestamp <= now;\n    const status = publicationExpired ? 'expired' : reservationExpired ? 'available' : rawStatus;\n    return {\n      id: fields.public_id ?? fields['item-id'] ?? null,\n      title: fields.title ?? '',\n      description: fields.description ?? '',\n      category: fields.category ?? 'Otros',\n      zone: fields.zone ?? 'Valladolid',\n      status,\n      created_at: fields.created_at ?? fields['Created time'] ?? fields.CreatedAt ?? null,\n      updated_at: fields.updated_at ?? fields['Last modified time'] ?? fields.UpdatedAt ?? null,\n      expires_at: fields.expires_at ?? null,\n      completed_at: fields.completed_at ?? null,\n      reserved_at: reservationExpired ? null : fields.reserved_at ?? null,\n      reservation_expires_at: reservationExpired ? null : fields.reservation_expires_at ?? null,\n      image_url: fields.image_url || image_urls[0] || null,\n      image_urls,\n      photo_keys,\n      owner_display_name: fields.owner_display_name ?? 'Vecindad',\n      owner_username: fields.owner_username ?? fields.owner_telegram_username ?? fields.telegram_username ?? '',\n      owner_telegram_id: String(fields.owner_telegram_id ?? ''),\n      interest_count: Math.max(0, Number(fields.interest_count ?? 0)),\n      contact_attempt_count: Math.max(0, Number(fields.contact_attempt_count ?? 0)),\n      favorite_count: Math.max(0, Number(fields.favorite_count ?? 0)),\n      renewal_count: Math.max(0, Math.trunc(Number(fields.renewal_count ?? 0))),\n    };\n  })\n  .filter((item) => item.id && ['available', 'reserved', 'completed', 'expired'].includes(item.status));\nreturn [{ json: { ok: true, items, total: items.length } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        -96
+      ],
+      "id": "c6d9e4f1-2b7a-4c8d-9f10-a3b5d6e7f8a9",
+      "name": "Filter owner items"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1120,
+        -96
+      ],
+      "id": "d8e3f1a2-6b4c-4d5e-9f70-a1b2c3d4e5f6",
+      "name": "Respond to Webhook"
+    }
   ],
-  "connections":{"Webhook":{"main":[[{"node":"Validate Telegram initData","type":"main","index":0}]]},"Validate Telegram initData":{"main":[[{"node":"Identity valid?","type":"main","index":0}]]},"Identity valid?":{"main":[[{"node":"Search rows","type":"main","index":0}],[{"node":"Respond to Webhook","type":"main","index":0}]]},"Search rows":{"main":[[{"node":"Filter owner items","type":"main","index":0}]]},"Filter owner items":{"main":[[{"node":"Respond to Webhook","type":"main","index":0}]]}},
-  "pinData":{},
-  "active":false,
-  "settings":{"executionOrder":"v1"},
-  "tags":[]
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Telegram initData",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Telegram initData": {
+      "main": [
+        [
+          {
+            "node": "Identity valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identity valid?": {
+      "main": [
+        [
+          {
+            "node": "Search rows",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search rows": {
+      "main": [
+        [
+          {
+            "node": "Filter owner items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter owner items": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
 }

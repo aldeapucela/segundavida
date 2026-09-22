@@ -146,6 +146,9 @@ let reportDialogTriggerButton = null;
 let reserveDialogItem = null;
 let reserveDialogTriggerButton = null;
 let reserveDialogFeedbackElement = null;
+let renewDialogItem = null;
+let renewDialogTriggerButton = null;
+let renewDialogFeedbackElement = null;
 let cameraCaptureTarget = "offer";
 
 const runtimeName = document.querySelector("#runtime-name");
@@ -256,6 +259,11 @@ const reserveItemCustomDays = document.querySelector("#reserve-item-dialog-days"
 const reserveItemCustomDaysField = document.querySelector("#reserve-item-dialog-custom");
 const reserveItemDurationCopy = document.querySelector("#reserve-item-dialog-duration-copy");
 const reserveItemExpiryCopy = document.querySelector("#reserve-item-dialog-expiry-copy");
+const renewItemDialog = document.querySelector("#renew-item-dialog");
+const renewItemDialogCancel = document.querySelector("#renew-item-dialog-cancel");
+const renewItemDialogConfirm = document.querySelector("#renew-item-dialog-confirm");
+const renewItemDurationOptions = [...document.querySelectorAll('input[name="renew-duration"]')];
+const renewItemDialogCopy = document.querySelector("#renew-item-dialog-copy");
 const publishSuccessView = document.querySelector("#publish-success-view");
 const favoritesCount = document.querySelector("#favorites-count");
 const favoritesList = document.querySelector("#favorites-list");
@@ -310,6 +318,7 @@ const offerEmptyButton = document.querySelector("#offer-empty-button");
 const postsTabs = [...document.querySelectorAll(".posts-tab")];
 const postsActiveCount = document.querySelector("#posts-active-count");
 const postsCompletedCount = document.querySelector("#posts-completed-count");
+const postsExpiredCount = document.querySelector("#posts-expired-count");
 const userProfileView = document.querySelector("#user-profile-view");
 const userProfileTitle = document.querySelector("#user-profile-title");
 const userProfileCopy = document.querySelector("#user-profile-copy");
@@ -821,6 +830,7 @@ function createTextElement(tagName, className, text) {
 }
 
 function configureDeliveryButton(button, status) {
+  button.hidden = false;
   const completed = status === "completed";
   const actionLabel = completed ? "Volver a publicar" : "Está entregado";
   const actionIcon = completed ? "fa-rotate-left" : "fa-check";
@@ -831,6 +841,38 @@ function configureDeliveryButton(button, status) {
   button.setAttribute("aria-label", actionLabel);
 
   button.replaceChildren(createIconElement(actionIcon, fallback), document.createTextNode(actionLabel));
+}
+
+function getRenewalCount(item) {
+  const count = Number(item?.renewalCount ?? 0);
+  return Number.isFinite(count) ? Math.max(0, Math.trunc(count)) : 0;
+}
+
+function hasRenewalInterest(item) {
+  return [item?.favoriteCount, item?.interestCount, item?.contactAttemptCount]
+    .some((count) => Number(count ?? 0) > 0);
+}
+
+function getRenewalBlockReason(item) {
+  const renewalCount = getRenewalCount(item);
+  if (renewalCount >= 2) return "Ya ha alcanzado el límite de renovaciones.";
+  if (renewalCount === 1 && !hasRenewalInterest(item)) {
+    return "La segunda renovación requiere algún favorito o interés registrado.";
+  }
+  return "";
+}
+
+function configureRenewButton(button) {
+  if (!button) return;
+  button.hidden = false;
+  button.disabled = false;
+  button.classList.remove("secondary-button--complete");
+  button.classList.add("secondary-button--reopen");
+  button.setAttribute("aria-label", "Renovar publicación");
+  button.replaceChildren(
+    createIconElement("fa-rotate", "↻"),
+    document.createTextNode("Renovar"),
+  );
 }
 
 function configureStatusButton(button, status) {
@@ -1706,7 +1748,7 @@ function createOwnedItemCard(item) {
   heading.append(title);
   heading.append(createTextElement(
     "span",
-    `owned-item-card__status ${item.status === "completed" ? "is-completed" : item.status === "reserved" ? "is-reserved" : ""}`,
+    `owned-item-card__status ${["completed", "expired"].includes(item.status) ? "is-completed" : item.status === "reserved" ? "is-reserved" : ""}`,
     getItemStatusLabel(item, { privateView: true }),
   ));
   content.append(heading);
@@ -1730,7 +1772,13 @@ function createOwnedItemCard(item) {
   deleteButton.type = "button";
   configureDeleteButton(deleteButton);
   const actionState = createTextElement("p", "owned-item-card__state", "");
-  deliveredButton.addEventListener("click", () => completeItem(item, deliveredButton, actionState));
+  deliveredButton.addEventListener("click", () => {
+    if (item.status === "expired") {
+      openRenewItemDialog(item, deliveredButton, actionState);
+      return;
+    }
+    void completeItem(item, deliveredButton, actionState);
+  });
   statusButton.addEventListener("click", () => {
     const action = item.status === "reserved" ? "release" : "reserve";
     if (action === "reserve") {
@@ -1740,6 +1788,17 @@ function createOwnedItemCard(item) {
     void manageItemAction(item, action, statusButton, actionState);
   });
   deleteButton.addEventListener("click", () => openDeleteItemDialog(item, deleteButton));
+  if (item.status === "expired") {
+    statusButton.hidden = true;
+    statusButton.disabled = true;
+    const renewalBlockReason = getRenewalBlockReason(item);
+    if (renewalBlockReason) {
+      deliveredButton.hidden = true;
+      actionState.textContent = renewalBlockReason;
+    } else {
+      configureRenewButton(deliveredButton);
+    }
+  }
   actions.append(statusButton);
   actions.append(deliveredButton);
   actions.append(deleteButton);
@@ -1800,13 +1859,23 @@ function renderMyItems() {
   });
   if (changed) saveOwnItems();
 
-  const items = state.myItems.filter(isOwnItem);
-  const activeItems = items.filter((item) => item.status !== "completed");
+  const items = state.myItems.filter(isOwnItem).map((item) => (
+    item.status === "available" && !isNotExpired(item)
+      ? { ...item, status: "expired" }
+      : item
+  ));
+  const activeItems = items.filter((item) => ["available", "reserved"].includes(item.status) && isNotExpired(item));
   const completedItems = items.filter((item) => item.status === "completed");
-  const visibleItems = state.postsFilter === "completed" ? completedItems : activeItems;
+  const expiredItems = items.filter((item) => item.status === "expired");
+  const visibleItems = state.postsFilter === "completed"
+    ? completedItems
+    : state.postsFilter === "expired"
+      ? expiredItems
+      : activeItems;
 
   postsActiveCount.textContent = String(activeItems.length);
   postsCompletedCount.textContent = String(completedItems.length);
+  if (postsExpiredCount) postsExpiredCount.textContent = String(expiredItems.length);
   postsTabs.forEach((tab) => {
     const selected = tab.dataset.postsFilter === state.postsFilter;
     tab.classList.toggle("is-active", selected);
@@ -1818,10 +1887,14 @@ function renderMyItems() {
   offerEmptyButton.hidden = state.postsFilter !== "active" || visibleItems.length > 0;
   postsEmptyTitle.textContent = state.postsFilter === "completed"
     ? "Aún no tienes publicaciones finalizadas"
-    : "Aún no tienes publicaciones activas";
+    : state.postsFilter === "expired"
+      ? "No tienes publicaciones caducadas"
+      : "Aún no tienes publicaciones activas";
   postsEmptyCopy.textContent = state.postsFilter === "completed"
     ? "Cuando marques una publicación como entregada, aparecerá aquí."
-    : "Cuando ofrezcas algo, aparecerá en esta sección.";
+    : state.postsFilter === "expired"
+      ? "Cuando una publicación caduque, podrás revisarla en esta sección."
+      : "Cuando ofrezcas algo, aparecerá en esta sección.";
 }
 
 function getItemImageUrls(item) {
@@ -2387,6 +2460,25 @@ async function saveInlineEdit() {
 }
 
 function renderDetail(item, { live = true, error = "" } = {}) {
+  const privateItem = item?.id
+    ? state.myItems.find((candidate) => candidate.id === item.id && isOwnItem(candidate))
+    : null;
+  if (privateItem) {
+    item = {
+      ...item,
+      ownerTelegramId: privateItem.ownerTelegramId,
+      renewalCount: privateItem.renewalCount,
+      favoriteCount: Math.max(Number(item.favoriteCount ?? 0), Number(privateItem.favoriteCount ?? 0)),
+      interestCount: Math.max(Number(item.interestCount ?? 0), Number(privateItem.interestCount ?? 0)),
+      contactAttemptCount: Math.max(
+        Number(item.contactAttemptCount ?? 0),
+        Number(privateItem.contactAttemptCount ?? 0),
+      ),
+    };
+  }
+  if (["available", "reserved"].includes(item?.status) && !isNotExpired(item)) {
+    item = { ...item, status: "expired" };
+  }
   const favoriteCountOverride = item?.id ? favoriteCountOverrides.get(item.id) : undefined;
   if (favoriteCountOverride !== undefined) {
     item = { ...item, favoriteCount: favoriteCountOverride };
@@ -2494,7 +2586,9 @@ function renderDetail(item, { live = true, error = "" } = {}) {
         ? "Esta publicación ya no está disponible."
         : "No se puede verificar ahora la disponibilidad ni las acciones."
       : ownItem
-        ? ""
+        ? item.status === "expired"
+          ? getRenewalBlockReason(item)
+          : ""
         : item.status === "reserved"
           ? "La recogida está en proceso. No se aceptan nuevos contactos para esta publicación."
         : item.status === "expired"
@@ -2513,8 +2607,11 @@ function renderDetail(item, { live = true, error = "" } = {}) {
   }
   if (detailInlineEditActions) detailInlineEditActions.hidden = !state.inlineEdit;
   if (markDeliveredButton) {
+    const renewalBlockReason = item.status === "expired" ? getRenewalBlockReason(item) : "";
+    markDeliveredButton.hidden = item.status === "expired" && (!ownItem || Boolean(renewalBlockReason));
     markDeliveredButton.disabled = false;
-    configureDeliveryButton(markDeliveredButton, item.status);
+    if (item.status === "expired") configureRenewButton(markDeliveredButton);
+    else configureDeliveryButton(markDeliveredButton, item.status);
   }
   configureStatusButton(manageStatusButton, item.status);
   if (deleteItemButton) {
@@ -2561,6 +2658,8 @@ function getUserProfileItems(username) {
   const lookupUsername = normalizedUsername.toLowerCase();
   return sortNewestFirst(state.profileCatalogItems.filter((item) => (
     normalizeTelegramUsername(item.ownerUsername).toLowerCase() === lookupUsername
+    && item.status !== "expired"
+    && !(["available", "reserved"].includes(item.status) && !isNotExpired(item))
   )));
 }
 
@@ -2935,7 +3034,7 @@ function isNotExpired(item) {
     ? item.expiresAt.replace(" ", "T")
     : item.expiresAt;
   const expiresAt = new Date(normalized);
-  return Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() >= Date.now();
+  return Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() > Date.now();
 }
 
 async function loadCatalog() {
@@ -3123,6 +3222,7 @@ async function openItemFromRoute() {
       favoriteCount: 0,
       interestCount: 0,
       contactAttemptCount: 0,
+      renewalCount: 0,
     };
 
     if (demoCompletedItem) {
@@ -4467,6 +4567,80 @@ function confirmReserveItemDialog() {
   void manageItemAction(item, "reserve", triggerButton, feedbackElement, { reservationDays });
 }
 
+function getRenewalDurationDays() {
+  return Number(renewItemDurationOptions.find((option) => option.checked)?.value ?? 14);
+}
+
+function updateRenewalDialogCopy() {
+  if (!renewItemDialogCopy) return;
+  const days = getRenewalDurationDays();
+  renewItemDialogCopy.textContent = `La publicación volverá a estar visible durante ${days} días.`;
+}
+
+function openRenewItemDialog(item, triggerButton, feedbackElement = detailActionState) {
+  if (!item?.id || !renewItemDialog || !renewItemDialogConfirm) return;
+
+  if (!isOwnItem(item)) {
+    if (feedbackElement) {
+      feedbackElement.textContent = "Solo el autor puede renovar esta publicación.";
+      feedbackElement.dataset.state = "error";
+    }
+    return;
+  }
+
+  const blockReason = getRenewalBlockReason(item);
+  if (blockReason) {
+    if (feedbackElement) {
+      feedbackElement.textContent = blockReason;
+      feedbackElement.dataset.state = "error";
+    }
+    return;
+  }
+
+  renewDialogItem = item;
+  renewDialogTriggerButton = triggerButton;
+  renewDialogFeedbackElement = feedbackElement;
+  renewItemDurationOptions.forEach((option) => {
+    option.checked = option.value === "14";
+  });
+  updateRenewalDialogCopy();
+  renewItemDialogConfirm.disabled = false;
+
+  if (typeof renewItemDialog.showModal === "function") {
+    renewItemDialog.showModal();
+  } else {
+    renewItemDialog.setAttribute("open", "");
+  }
+  renewItemDialogCancel?.focus();
+}
+
+function closeRenewItemDialog({ restoreFocus = true } = {}) {
+  if (!renewItemDialog) return;
+
+  if (typeof renewItemDialog.close === "function" && renewItemDialog.open) {
+    renewItemDialog.close();
+  } else {
+    renewItemDialog.removeAttribute("open");
+  }
+
+  const triggerButton = renewDialogTriggerButton;
+  renewDialogItem = null;
+  renewDialogTriggerButton = null;
+  renewDialogFeedbackElement = null;
+  if (restoreFocus && triggerButton?.isConnected) triggerButton.focus();
+}
+
+function confirmRenewItemDialog() {
+  const item = renewDialogItem;
+  const triggerButton = renewDialogTriggerButton;
+  const feedbackElement = renewDialogFeedbackElement;
+  const renewalDays = getRenewalDurationDays();
+  if (!item || !triggerButton || ![7, 14, 30].includes(renewalDays)) return;
+
+  closeRenewItemDialog({ restoreFocus: false });
+  void manageItemAction(item, "renew", triggerButton, feedbackElement, { renewalDays });
+}
+
 function closeDeleteItemDialog({ restoreFocus = true } = {}) {
   if (!deleteItemDialog) return;
 
@@ -4567,7 +4741,7 @@ async function manageItemAction(
   action,
   triggerButton,
   feedbackElement = detailActionState,
-  { reservationDays = 1 } = {},
+  { reservationDays = 1, renewalDays = 14 } = {},
 ) {
   if (!item?.id) return;
 
@@ -4588,11 +4762,15 @@ async function manageItemAction(
       && Number(reservationDays) <= 30
       ? Number(reservationDays)
       : 1;
+    const normalizedRenewalDays = [7, 14, 30].includes(Number(renewalDays))
+      ? Number(renewalDays)
+      : 14;
     const result = await api.completeItem({
       initData: auth.getInitData(),
       item_id: item.id,
       action,
       ...(action === "reserve" ? { reservation_days: normalizedReservationDays } : {}),
+      ...(action === "renew" ? { renewal_days: normalizedRenewalDays } : {}),
     });
 
     if (!result.ok) {
@@ -4607,7 +4785,7 @@ async function manageItemAction(
     state.catalogNeedsRefresh = true;
     const fallbackStatus = action === "reserve"
       ? "reserved"
-      : action === "release" || action === "reopen"
+      : action === "release" || action === "reopen" || action === "renew"
         ? "available"
         : "completed";
     const nextStatus = result.status || fallbackStatus;
@@ -4624,6 +4802,9 @@ async function manageItemAction(
       completedAt: nextStatus === "completed"
         ? result.completed_at || new Date().toISOString()
         : null,
+      renewalCount: action === "renew"
+        ? Number(result.renewal_count ?? getRenewalCount(item) + 1)
+        : getRenewalCount(item),
     };
     state.items = ["available", "reserved"].includes(nextStatus)
       ? [...state.items.filter((candidate) => candidate.id !== item.id), updatedItem]
@@ -4632,10 +4813,16 @@ async function manageItemAction(
     renderItems();
     renderMyItems();
     renderDetail(updatedItem);
+    if (action === "renew" && postsActionState) {
+      postsActionState.textContent = `Publicación renovada durante ${normalizedRenewalDays} días.`;
+      postsActionState.dataset.state = "success";
+    }
   } catch (error) {
     triggerButton.disabled = false;
     if (action === "reserve" || action === "release") {
       configureStatusButton(triggerButton, item.status);
+    } else if (action === "renew") {
+      configureRenewButton(triggerButton);
     } else {
       configureDeliveryButton(triggerButton, item.status);
     }
@@ -4643,12 +4830,25 @@ async function manageItemAction(
       showTelegramSessionExpired(feedbackElement);
       return;
     }
-    feedbackElement.textContent = error.message || "No se ha podido actualizar la publicación.";
+    const renewalErrors = {
+      not_owner: "Solo el autor puede renovar esta publicación.",
+      item_not_expired: "Solo se pueden renovar publicaciones caducadas.",
+      renewal_interest_required: "La segunda renovación requiere algún favorito o interés registrado.",
+      renewal_limit_reached: "Ya ha alcanzado el límite de renovaciones.",
+      renewal_days_invalid: "Elige una duración de 7, 14 o 30 días.",
+    };
+    feedbackElement.textContent = renewalErrors[error.code]
+      || error.message
+      || "No se ha podido actualizar la publicación.";
     feedbackElement.dataset.state = "error";
   }
 }
 
 async function completeItem(item, triggerButton = markDeliveredButton, feedbackElement = detailActionState) {
+  if (item?.status === "expired" || (["available", "reserved"].includes(item?.status) && !isNotExpired(item))) {
+    openRenewItemDialog({ ...item, status: "expired" }, triggerButton, feedbackElement);
+    return;
+  }
   const action = item?.status === "completed" ? "reopen" : "complete";
   return manageItemAction(item, action, triggerButton, feedbackElement);
 }
@@ -5301,6 +5501,18 @@ reserveItemDurationOptions.forEach((option) => {
   option.addEventListener("change", updateReservationDurationCopy);
 });
 reserveItemCustomDays?.addEventListener("input", updateReservationDurationCopy);
+renewItemDialogCancel?.addEventListener("click", () => closeRenewItemDialog());
+renewItemDialogConfirm?.addEventListener("click", confirmRenewItemDialog);
+renewItemDialog?.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeRenewItemDialog();
+});
+renewItemDialog?.addEventListener("click", (event) => {
+  if (event.target === renewItemDialog) closeRenewItemDialog();
+});
+renewItemDurationOptions.forEach((option) => {
+  option.addEventListener("change", updateRenewalDialogCopy);
+});
 deleteItemDialogReasonOptions.forEach((option) => {
   option.addEventListener("change", updateDeleteItemDialogSelection);
 });

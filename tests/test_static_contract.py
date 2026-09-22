@@ -3,6 +3,7 @@ import sys
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -12,6 +13,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from generate_static_pages import (  # noqa: E402
     ContractError,
     generate,
+    is_publicly_active,
     normalize_item,
     reconcile,
     stable_image_identity,
@@ -228,6 +230,12 @@ class StaticContractTests(unittest.TestCase):
             self.assertNotIn("owner_telegram_id", feed_source)
 
             self.assertIn('type="application/rss+xml"', (output / "i" / "safe-new" / "index.html").read_text(encoding="utf-8"))
+
+    def test_rss_excludes_effectively_expired_items(self):
+        now = datetime(2026, 9, 22, 12, 0, tzinfo=timezone.utc)
+        self.assertFalse(is_publicly_active({"status": "available", "expires_at": "2026-09-22T12:00:00Z"}, now))
+        self.assertFalse(is_publicly_active({"status": "reserved", "expires_at": "2026-09-22T11:59:59Z"}, now))
+        self.assertTrue(is_publicly_active({"status": "available", "expires_at": "2026-09-22T12:00:01Z"}, now))
 
     def test_homepage_has_social_metadata_and_image_urls_feed_item_preview(self):
         homepage = self.template.read_text(encoding="utf-8")
@@ -734,10 +742,16 @@ class StaticContractTests(unittest.TestCase):
         self.assertIn("'hide'", code)
         self.assertIn("'reserve'", code)
         self.assertIn("'release'", code)
+        self.assertIn("'renew'", code)
+        self.assertIn("renewal_days", code)
+        self.assertIn("renewal_count", workflow_text)
+        self.assertIn("renewal_limit_reached", code)
+        self.assertIn("renewal_interest_required", code)
+        self.assertIn("item_not_expired", code)
         self.assertIn("reservation_expires_at", code)
         self.assertIn("reservation_days", code)
         self.assertIn("reservationDays", code)
-        self.assertIn("status:nextStatus", code)
+        self.assertIn("status: nextStatus", code)
         self.assertIn("item_already_hidden", code)
         self.assertIn("owner_telegram_id", code)
         self.assertIn("Publicación borrada", code)
@@ -764,6 +778,24 @@ class StaticContractTests(unittest.TestCase):
         self.assertIn("dltemp/", mine_code)
         self.assertIn("reserved_at", mine_code)
         self.assertIn("reservation_expires_at", mine_code)
+        self.assertIn("renewal_count", mine_code)
+        self.assertIn("contact_attempt_count", mine_code)
+        self.assertIn("favorite_count", mine_code)
+        self.assertIn("expiresTimestamp <= now", mine_code)
+
+    def test_expired_renewal_frontend_contract(self):
+        index_source = self.template.read_text(encoding="utf-8")
+        app_source = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
+        api_source = (ROOT / "js" / "api.js").read_text(encoding="utf-8")
+        self.assertIn('data-posts-filter="expired"', index_source)
+        self.assertIn('id="renew-item-dialog"', index_source)
+        self.assertIn('name="renew-duration" value="7"', index_source)
+        self.assertIn('name="renew-duration" value="14"', index_source)
+        self.assertIn('name="renew-duration" value="30"', index_source)
+        self.assertIn('manageItemAction(item, "renew"', app_source)
+        self.assertIn('renewal_days: normalizedRenewalDays', app_source)
+        self.assertIn('renewalCount:', api_source)
+        self.assertIn('expiresTimestamp <= Date.now()', api_source)
 
     def test_admin_permissions_contract_uses_n8n_data_table(self):
         docs = (ROOT / "docs" / "admin-permissions.md").read_text(encoding="utf-8")

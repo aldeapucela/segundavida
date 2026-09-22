@@ -1,13 +1,14 @@
 # Gestionar el estado de una publicación
 
 Importa [`sv_complete_item.workflow.json`](./sv_complete_item.workflow.json) en
-n8n. El workflow crea un único endpoint para las cinco acciones:
+n8n. El workflow crea un único endpoint para las seis acciones:
 
 Si solo necesitas reemplazar el nodo NocoDB, puedes importar
 [`sv_complete_update_node.json`](./sv_complete_update_node.json). Debe recibir
-un item con `Id` (la clave técnica de NocoDB), `status` y `completed_at`. Para
-reactivar una publicación, `status` será `available` y `completed_at` será
-`null`.
+un item con `Id` (la clave técnica de NocoDB), `status`, `completed_at`,
+`reserved_at`, `reservation_expires_at`, `expires_at` y `renewal_count`.
+Para reactivar una publicación, `status` será `available` y `completed_at`
+será `null`.
 
 ```text
 POST https://tasks.nukeador.com/webhook/segundavida/complete
@@ -18,7 +19,7 @@ en la tabla `Segunda Vida`, comprueba la firma de `Telegram.WebApp.initData` y
 permite cambiar la publicación si `owner_telegram_id` coincide con la persona
 autenticada o si la identidad aparece activa con rol `admin` en el Data Table
 `Segunda Vida - Permisos`. La acción recibida puede ser `complete`, `reopen`,
-`hide`, `reserve` o `release`. En el
+`hide`, `reserve`, `release` o `renew`. En el
 nodo `Update NocoDB row`, el campo **Row ID Value** debe quedar exactamente así:
 
 ```text
@@ -57,6 +58,20 @@ Al borrar escribe:
 - conserva `completed_at` si la publicación ya estaba entregada
 - limpia las fechas de reserva si estaba reservada
 
+Al renovar una publicación caducada escribe:
+
+- `status = available`
+- `expires_at =` la fecha actual más `7`, `14` o `30` días
+- `renewal_count = renewal_count + 1`
+- limpia las fechas de reserva
+
+La primera renovación siempre está permitida. La segunda requiere que al menos
+uno de `favorite_count`, `interest_count` o `contact_attempt_count` sea mayor
+que cero. Una tercera renovación se rechaza. Las solicitudes simultáneas
+calculan el mismo siguiente contador y, tras la primera actualización, el
+anuncio deja de estar caducado; una petición duplicada no consume dos
+renovaciones.
+
 El borrado es una ocultación reversible para administración y auditoría: la
 fila no se elimina físicamente. Las publicaciones ocultas dejan de aparecer
 en el catálogo, en su ficha pública y en `Mis publicaciones`. El estado de una
@@ -80,8 +95,10 @@ Después de importar:
 2. Comprueba que la credencial del nodo `Search rows` y `Update NocoDB row` es
    `NocoDB Token account`.
 3. Comprueba que la tabla seleccionada es `Segunda Vida` y que contiene los
-   campos `Id`, `item-id`, `owner_telegram_id`, `status`, `completed_at`,
-   `reserved_at` y `reservation_expires_at`.
+   campos `Id`, `item-id`, `owner_telegram_id`, `status`, `expires_at`,
+   `renewal_count`, `favorite_count`, `interest_count`,
+   `contact_attempt_count`, `completed_at`, `reserved_at` y
+   `reservation_expires_at`.
    En `Update NocoDB row`, pon `{{ $json.Id }}` en **Row ID Value**.
 4. La regeneración estática no es necesaria para cambios de estado. Si el
    workflow importado conserva un nodo `Dispatch static page regeneration`,
@@ -109,12 +126,24 @@ Para reservar una publicación disponible, envía `"action": "reserve"` y
 `"reservation_days"` (entero entre 1 y 30; por defecto, 1). Para liberar una
 reserva, envía `"action": "release"`.
 
+Para renovar una publicación caducada, envía `"action": "renew"` y
+`"renewal_days": 7`, `14` o `30`.
+
 ```json
 {
   "initData": "<Telegram.WebApp.initData>",
   "item_id": "k8Qm2LxP",
   "action": "reserve",
   "reservation_days": 2
+}
+```
+
+```json
+{
+  "initData": "<Telegram.WebApp.initData>",
+  "item_id": "k8Qm2LxP",
+  "action": "renew",
+  "renewal_days": 14
 }
 ```
 

@@ -2,43 +2,136 @@
   "name": "SV · Get public item",
   "nodes": [
     {
-      "parameters": {"httpMethod":"GET","path":"segundavida/item/:public_id","responseMode":"responseNode","options":{"allowedOrigins":"https://segundavida.aldeapucela.org,http://localhost:8000,http://127.0.0.1:8000"}},
-      "type":"n8n-nodes-base.webhook",
-      "typeVersion":2.1,
-      "position":[0,0],
-      "id":"a42d8b0a-b8f8-4a80-b3e0-7c6a21c6d8b2",
-      "name":"Webhook"
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "segundavida/item/:public_id",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://segundavida.aldeapucela.org,http://localhost:8000,http://127.0.0.1:8000"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "a42d8b0a-b8f8-4a80-b3e0-7c6a21c6d8b2",
+      "name": "Webhook"
     },
     {
-      "parameters":{"authentication":"nocoDbApiToken","operation":"search","workspaceId":{"__rl":true,"value":"wfrogvq8","mode":"list","cachedResultName":"Default Workspace"},"projectId":{"__rl":true,"value":"p3amiucxfm0jzoc","mode":"list","cachedResultName":"Aldea Pucela"},"table":{"__rl":true,"value":"mwk20n0679wz5fr","mode":"list","cachedResultName":"Segunda Vida"},"returnAll":true,"options":{},"resource":"row","downloadAttachments":false},
-      "type":"n8n-nodes-base.nocoDb",
-      "typeVersion":4,
-      "position":[224,0],
-      "id":"f4f1e3d2-0a25-43a3-9b1f-0a946ff7b2d4",
-      "name":"Search rows",
-      "alwaysOutputData":true,
-      "credentials":{"nocoDbApiToken":{"id":"t0BGosFerj8egJ4y","name":"NocoDB Token account"}}
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "search",
+        "workspaceId": {
+          "__rl": true,
+          "value": "wfrogvq8",
+          "mode": "list",
+          "cachedResultName": "Default Workspace"
+        },
+        "projectId": {
+          "__rl": true,
+          "value": "p3amiucxfm0jzoc",
+          "mode": "list",
+          "cachedResultName": "Aldea Pucela"
+        },
+        "table": {
+          "__rl": true,
+          "value": "mwk20n0679wz5fr",
+          "mode": "list",
+          "cachedResultName": "Segunda Vida"
+        },
+        "returnAll": true,
+        "options": {},
+        "resource": "row",
+        "downloadAttachments": false
+      },
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 4,
+      "position": [
+        224,
+        0
+      ],
+      "id": "f4f1e3d2-0a25-43a3-9b1f-0a946ff7b2d4",
+      "name": "Search rows",
+      "alwaysOutputData": true,
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "t0BGosFerj8egJ4y",
+          "name": "NocoDB Token account"
+        }
+      }
     },
     {
-      "parameters":{"jsCode":"const webhook=$('Webhook').first()?.json ?? {}; const requestedId=String(webhook.params?.public_id ?? webhook.public_id ?? '').trim(); const publicIdPattern=/^[A-Za-z0-9_-]{6,80}$/; const numericTelegramPattern=/^(?:\\d{6,80}|\\d+(?:[-_]\\d+)+)$/; const NOCODB_BASE_URL='https://proyectos.aldeapucela.org'; function response(body,httpStatus=200){return [{json:{response:body,http_status:httpStatus}}];} function asAttachmentList(value){if(Array.isArray(value))return value;if(value&&typeof value==='object')return [value];if(typeof value!=='string'||!value.trim())return [];try{const parsed=JSON.parse(value);if(Array.isArray(parsed))return parsed;if(parsed&&typeof parsed==='object')return [parsed];}catch{return [value.trim()];}return [];} function attachmentUrl(attachment){const candidate=typeof attachment==='string'?attachment:attachment?.url ?? attachment?.signedUrl ?? attachment?.signed_url ?? attachment?.thumbnails?.small?.signedUrl ?? attachment?.thumbnails?.small?.signed_url ?? attachment?.path ?? ''; const value=String(candidate).trim();if(!value)return '';if(/^https?:\\/\\//i.test(value))return value;if(value.startsWith('/'))return NOCODB_BASE_URL+value;if(value.startsWith('download/'))return NOCODB_BASE_URL+'/'+value;return '';} function extractImageUrls(value){return asAttachmentList(value).map(attachmentUrl).filter(Boolean);} if(!publicIdPattern.test(requestedId)||numericTelegramPattern.test(requestedId))return response({ok:false,error:'not_found'},404); const found=$input.all().map(({json})=>({json,fields:json.fields ?? json})).find(({fields})=>String(fields.public_id ?? fields['item-id'] ?? '')===requestedId); if(!found)return response({ok:false,error:'not_found'},404); const fields=found.fields; const rawStatus=String(fields.status ?? 'hidden').toLowerCase(); if(!['available','reserved','completed','expired'].includes(rawStatus))return response({ok:false,error:'not_found'},404); const expiresAt=fields.expires_at ?? null; const expiresTimestamp=expiresAt?new Date(String(expiresAt).replace(' ','T')).getTime():NaN; const reservationExpiresAt=fields.reservation_expires_at ?? null; const reservationTimestamp=reservationExpiresAt?new Date(String(reservationExpiresAt).replace(' ','T')).getTime():NaN; const reservationExpired=rawStatus==='reserved'&&Number.isFinite(reservationTimestamp)&&reservationTimestamp<=Date.now(); const status=reservationExpired?'available':rawStatus==='available'&&Number.isFinite(expiresTimestamp)&&expiresTimestamp<Date.now()?'expired':rawStatus; const attachmentField=Object.entries(fields).find(([key])=>key.toLowerCase()==='photos')?.[1]; const imageUrls=[...new Set([...extractImageUrls(attachmentField),...extractImageUrls(fields.photos),...extractImageUrls(fields.Fotos),...extractImageUrls(fields.fotos)])]; const item={id:fields.public_id ?? fields['item-id'] ?? requestedId,title:fields.title ?? '',description:fields.description ?? '',category:fields.category ?? 'Otros',zone:fields.zone ?? 'Valladolid',status,created_at:fields.created_at ?? fields['Created time'] ?? fields.CreatedAt ?? null,updated_at:fields.updated_at ?? fields['Last modified time'] ?? fields.UpdatedAt ?? null,expires_at:expiresAt,completed_at:fields.completed_at ?? null,image_url:fields.image_url||imageUrls[0]||null,image_urls:imageUrls,owner_display_name:fields.owner_display_name ?? 'Vecindad',owner_username:fields.owner_username||null,interest_count:Number(fields.interest_count ?? 0),contact_attempt_count:Number(fields.contact_attempt_count ?? 0),favorite_count:Math.max(0,Number(fields.favorite_count ?? 0))}; return response({ok:true,item});"},
-      "type":"n8n-nodes-base.code",
-      "typeVersion":2,
-      "position":[448,0],
-      "id":"31fd19bf-4b8f-4ce0-a1f1-f407c3cfe63e",
-      "name":"Project public item"
+      "parameters": {
+        "jsCode": "const webhook=$('Webhook').first()?.json ?? {}; const requestedId=String(webhook.params?.public_id ?? webhook.public_id ?? '').trim(); const publicIdPattern=/^[A-Za-z0-9_-]{6,80}$/; const numericTelegramPattern=/^(?:\\d{6,80}|\\d+(?:[-_]\\d+)+)$/; const NOCODB_BASE_URL='https://proyectos.aldeapucela.org'; function response(body,httpStatus=200){return [{json:{response:body,http_status:httpStatus}}];} function asAttachmentList(value){if(Array.isArray(value))return value;if(value&&typeof value==='object')return [value];if(typeof value!=='string'||!value.trim())return [];try{const parsed=JSON.parse(value);if(Array.isArray(parsed))return parsed;if(parsed&&typeof parsed==='object')return [parsed];}catch{return [value.trim()];}return [];} function attachmentUrl(attachment){const candidate=typeof attachment==='string'?attachment:attachment?.url ?? attachment?.signedUrl ?? attachment?.signed_url ?? attachment?.thumbnails?.small?.signedUrl ?? attachment?.thumbnails?.small?.signed_url ?? attachment?.path ?? ''; const value=String(candidate).trim();if(!value)return '';if(/^https?:\\/\\//i.test(value))return value;if(value.startsWith('/'))return NOCODB_BASE_URL+value;if(value.startsWith('download/'))return NOCODB_BASE_URL+'/'+value;return '';} function extractImageUrls(value){return asAttachmentList(value).map(attachmentUrl).filter(Boolean);} if(!publicIdPattern.test(requestedId)||numericTelegramPattern.test(requestedId))return response({ok:false,error:'not_found'},404); const found=$input.all().map(({json})=>({json,fields:json.fields ?? json})).find(({fields})=>String(fields.public_id ?? fields['item-id'] ?? '')===requestedId); if(!found)return response({ok:false,error:'not_found'},404); const fields=found.fields; const rawStatus=String(fields.status ?? 'hidden').toLowerCase(); if(!['available','reserved','completed','expired'].includes(rawStatus))return response({ok:false,error:'not_found'},404); const expiresAt=fields.expires_at ?? null; const expiresTimestamp=expiresAt?new Date(String(expiresAt).replace(' ','T')).getTime():NaN; const reservationExpiresAt=fields.reservation_expires_at ?? null; const reservationTimestamp=reservationExpiresAt?new Date(String(reservationExpiresAt).replace(' ','T')).getTime():NaN; const reservationExpired=rawStatus==='reserved'&&Number.isFinite(reservationTimestamp)&&reservationTimestamp<=Date.now(); const publicationExpired=['available','reserved'].includes(rawStatus)&&Number.isFinite(expiresTimestamp)&&expiresTimestamp<=Date.now(); const status=publicationExpired?'expired':reservationExpired?'available':rawStatus; const attachmentField=Object.entries(fields).find(([key])=>key.toLowerCase()==='photos')?.[1]; const imageUrls=[...new Set([...extractImageUrls(attachmentField),...extractImageUrls(fields.photos),...extractImageUrls(fields.Fotos),...extractImageUrls(fields.fotos)])]; const item={id:fields.public_id ?? fields['item-id'] ?? requestedId,title:fields.title ?? '',description:fields.description ?? '',category:fields.category ?? 'Otros',zone:fields.zone ?? 'Valladolid',status,created_at:fields.created_at ?? fields['Created time'] ?? fields.CreatedAt ?? null,updated_at:fields.updated_at ?? fields['Last modified time'] ?? fields.UpdatedAt ?? null,expires_at:expiresAt,completed_at:fields.completed_at ?? null,image_url:fields.image_url||imageUrls[0]||null,image_urls:imageUrls,owner_display_name:fields.owner_display_name ?? 'Vecindad',owner_username:fields.owner_username||null,interest_count:Number(fields.interest_count ?? 0),contact_attempt_count:Number(fields.contact_attempt_count ?? 0),favorite_count:Math.max(0,Number(fields.favorite_count ?? 0))}; return response({ok:true,item});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "31fd19bf-4b8f-4ce0-a1f1-f407c3cfe63e",
+      "name": "Project public item"
     },
     {
-      "parameters":{"respondWith":"json","responseBody":"={{ $json.response }}","options":{"responseCode":"={{ $json.http_status }}"}},
-      "type":"n8n-nodes-base.respondToWebhook",
-      "typeVersion":1.5,
-      "position":[672,0],
-      "id":"e5b3d6f3-1ac7-4a6a-9ad1-9c4df12db8a6",
-      "name":"Respond to Webhook"
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.response }}",
+        "options": {
+          "responseCode": "={{ $json.http_status }}"
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        672,
+        0
+      ],
+      "id": "e5b3d6f3-1ac7-4a6a-9ad1-9c4df12db8a6",
+      "name": "Respond to Webhook"
     }
   ],
-  "connections":{"Webhook":{"main":[[{"node":"Search rows","type":"main","index":0}]]},"Search rows":{"main":[[{"node":"Project public item","type":"main","index":0}]]},"Project public item":{"main":[[{"node":"Respond to Webhook","type":"main","index":0}]]}},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Search rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search rows": {
+      "main": [
+        [
+          {
+            "node": "Project public item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Project public item": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
   "pinData": {},
   "active": false,
-  "settings":{"executionOrder":"v1"},
-  "tags":[]
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
 }

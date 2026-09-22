@@ -29,8 +29,12 @@
         "fieldsMapper": {
           "mappingMode": "defineBelow",
           "value": {
-            "status": "={{ $json.status ?? 'completed' }}",
-            "completed_at": "={{ $json.completed_at ?? null }}"
+            "status": "={{ $json.status }}",
+            "completed_at": "={{ $json.completed_at }}",
+            "reserved_at": "={{ $json.reserved_at }}",
+            "reservation_expires_at": "={{ $json.reservation_expires_at }}",
+            "expires_at": "={{ $json.expires_at }}",
+            "renewal_count": "={{ $json.renewal_count }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -46,6 +50,38 @@
               "id": "completed_at",
               "displayName": "completed_at",
               "type": "dateTime",
+              "display": true,
+              "defaultMatch": false,
+              "readOnly": false
+            },
+            {
+              "id": "reserved_at",
+              "displayName": "reserved_at",
+              "type": "dateTime",
+              "display": true,
+              "defaultMatch": false,
+              "readOnly": false
+            },
+            {
+              "id": "reservation_expires_at",
+              "displayName": "reservation_expires_at",
+              "type": "dateTime",
+              "display": true,
+              "defaultMatch": false,
+              "readOnly": false
+            },
+            {
+              "id": "expires_at",
+              "displayName": "expires_at",
+              "type": "dateTime",
+              "display": true,
+              "defaultMatch": false,
+              "readOnly": false
+            },
+            {
+              "id": "renewal_count",
+              "displayName": "renewal_count",
+              "type": "number",
               "display": true,
               "defaultMatch": false,
               "readOnly": false
