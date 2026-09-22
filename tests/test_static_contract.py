@@ -367,10 +367,10 @@ class StaticContractTests(unittest.TestCase):
         self.assertIn("function captureCameraPhoto", app_source)
         self.assertIn("PHOTO_MAX_EDGE = 1280", app_source)
         self.assertIn("function createPhotoCarousel", app_source)
-        self.assertIn("function handlePhotoLightboxTouchStart", app_source)
-        self.assertIn("function handlePhotoLightboxTouchEnd", app_source)
-        self.assertIn('photoLightboxStage?.addEventListener("touchstart"', app_source)
-        self.assertIn('photoLightboxStage?.addEventListener("touchend"', app_source)
+        self.assertIn("function handlePhotoLightboxPointerDown", app_source)
+        self.assertIn("function handlePhotoLightboxPointerUp", app_source)
+        self.assertIn('photoLightboxStage?.addEventListener("pointerdown"', app_source)
+        self.assertIn('photoLightboxStage?.addEventListener("pointerup"', app_source)
         self.assertIn("function renderReservedActionState", app_source)
         self.assertIn("Este objeto ya está reservado.", app_source)
         self.assertIn("Si no se entregara, el autor podría volver a publicarlo.", app_source)
@@ -805,6 +805,17 @@ class StaticContractTests(unittest.TestCase):
         self.assertIn("left.renewedAt", app_source)
         self.assertIn("right.renewedAt", app_source)
         self.assertIn("result.renewed_at ?? new Date().toISOString()", app_source)
+
+    def test_photo_lightbox_supports_pinch_and_keeps_swipe_at_fit_scale(self):
+        app_source = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
+        css_source = (ROOT / "css" / "app.css").read_text(encoding="utf-8")
+        self.assertIn("const PHOTO_LIGHTBOX_MAX_SCALE = 4", app_source)
+        self.assertIn("function startPhotoLightboxPinch", app_source)
+        self.assertIn("function handlePhotoLightboxPointerMove", app_source)
+        self.assertIn("photoLightboxScale <= 1.001", app_source)
+        self.assertIn("movePhotoLightbox(deltaX < 0 ? 1 : -1)", app_source)
+        self.assertIn("touch-action: none", css_source)
+        self.assertIn("transform-origin: center", css_source)
 
     def test_admin_permissions_contract_uses_n8n_data_table(self):
         docs = (ROOT / "docs" / "admin-permissions.md").read_text(encoding="utf-8")

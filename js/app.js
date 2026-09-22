@@ -111,8 +111,13 @@ const state = {
 let photoLightboxUrls = [];
 let photoLightboxIndex = 0;
 let photoLightboxReturnFocus = null;
-let photoLightboxTouchStartX = 0;
-let photoLightboxTouchStartY = 0;
+let photoLightboxScale = 1;
+let photoLightboxOffsetX = 0;
+let photoLightboxOffsetY = 0;
+let photoLightboxGesture = null;
+const photoLightboxPointers = new Map();
+const PHOTO_LIGHTBOX_MAX_SCALE = 4;
+const PHOTO_LIGHTBOX_SWIPE_THRESHOLD = 40;
 let lastTrackedViewKey = "";
 const trackedInterestTelegramItems = new Set();
 const pendingInteractions = new Set();
@@ -2023,6 +2028,7 @@ async function recoverCatalogImage(item, image, media, originalUrl) {
 function updatePhotoLightbox() {
   if (!photoLightbox || !photoLightboxImage || !photoLightboxUrls.length) return;
 
+  resetPhotoLightboxZoom();
   const total = photoLightboxUrls.length;
   const url = photoLightboxUrls[photoLightboxIndex];
   photoLightboxImage.src = url;
@@ -2093,22 +2099,185 @@ function movePhotoLightbox(step) {
   updatePhotoLightbox();
 }
 
-function handlePhotoLightboxTouchStart(event) {
-  if (photoLightboxUrls.length < 2) return;
-  const touch = event.changedTouches[0];
-  if (!touch) return;
-  photoLightboxTouchStartX = touch.clientX;
-  photoLightboxTouchStartY = touch.clientY;
+function setPhotoLightboxTransform() {
+  if (!photoLightboxImage) return;
+  photoLightboxImage.style.transform = `translate3d(${photoLightboxOffsetX}px, ${photoLightboxOffsetY}px, 0) scale(${photoLightboxScale})`;
+  photoLightboxImage.classList.toggle("is-zoomed", photoLightboxScale > 1.001);
 }
 
-function handlePhotoLightboxTouchEnd(event) {
-  if (photoLightboxUrls.length < 2) return;
-  const touch = event.changedTouches[0];
-  if (!touch) return;
-  const deltaX = touch.clientX - photoLightboxTouchStartX;
-  const deltaY = touch.clientY - photoLightboxTouchStartY;
-  if (Math.abs(deltaX) < 40 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
-  movePhotoLightbox(deltaX < 0 ? 1 : -1);
+function resetPhotoLightboxZoom() {
+  photoLightboxPointers.clear();
+  photoLightboxGesture = null;
+  photoLightboxScale = 1;
+  photoLightboxOffsetX = 0;
+  photoLightboxOffsetY = 0;
+  setPhotoLightboxTransform();
+}
+
+function clampPhotoLightboxPan() {
+  if (!photoLightboxStage || !photoLightboxImage || photoLightboxScale <= 1) {
+    photoLightboxOffsetX = 0;
+    photoLightboxOffsetY = 0;
+    return;
+  }
+
+  const naturalWidth = photoLightboxImage.naturalWidth || photoLightboxImage.clientWidth;
+  const naturalHeight = photoLightboxImage.naturalHeight || photoLightboxImage.clientHeight;
+  const baseWidth = photoLightboxImage.clientWidth;
+  const baseHeight = photoLightboxImage.clientHeight;
+  const fitScale = Math.min(baseWidth / naturalWidth, baseHeight / naturalHeight);
+  const stageWidth = photoLightboxStage.clientWidth;
+  const stageHeight = photoLightboxStage.clientHeight;
+  const maxX = Math.max(0, (naturalWidth * fitScale * photoLightboxScale - stageWidth) / 2);
+  const maxY = Math.max(0, (naturalHeight * fitScale * photoLightboxScale - stageHeight) / 2);
+  photoLightboxOffsetX = Math.max(-maxX, Math.min(maxX, photoLightboxOffsetX));
+  photoLightboxOffsetY = Math.max(-maxY, Math.min(maxY, photoLightboxOffsetY));
+}
+
+function photoLightboxPointerPair() {
+  return [...photoLightboxPointers.values()].slice(0, 2);
+}
+
+function startPhotoLightboxPinch() {
+  const [first, second] = photoLightboxPointerPair();
+  if (!first || !second || !photoLightboxStage) return;
+
+  const rect = photoLightboxStage.getBoundingClientRect();
+  const midpointX = (first.x + second.x) / 2;
+  const midpointY = (first.y + second.y) / 2;
+  const distance = Math.hypot(second.x - first.x, second.y - first.y);
+  photoLightboxGesture = {
+    mode: "pinch",
+    startDistance: Math.max(1, distance),
+    startScale: photoLightboxScale,
+    contentX: (midpointX - rect.left - rect.width / 2 - photoLightboxOffsetX) / photoLightboxScale,
+    contentY: (midpointY - rect.top - rect.height / 2 - photoLightboxOffsetY) / photoLightboxScale,
+  };
+}
+
+function handlePhotoLightboxPointerDown(event) {
+  if (event.target.closest?.("button") || (event.pointerType === "mouse" && event.button !== 0)) return;
+
+  photoLightboxPointers.set(event.pointerId, {
+    x: event.clientX,
+    y: event.clientY,
+    pointerType: event.pointerType,
+  });
+  try {
+    photoLightboxStage.setPointerCapture(event.pointerId);
+  } catch {
+    // Pointer capture is unavailable in a few embedded browsers; bubbling still handles the gesture.
+  }
+
+  if (photoLightboxPointers.size >= 2) {
+    startPhotoLightboxPinch();
+    return;
+  }
+
+  photoLightboxGesture = photoLightboxScale > 1.001
+    ? {
+      mode: "pan",
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startOffsetX: photoLightboxOffsetX,
+      startOffsetY: photoLightboxOffsetY,
+    }
+    : {
+      mode: "swipe",
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+}
+
+function handlePhotoLightboxPointerMove(event) {
+  if (!photoLightboxPointers.has(event.pointerId)) return;
+  photoLightboxPointers.set(event.pointerId, {
+    x: event.clientX,
+    y: event.clientY,
+    pointerType: event.pointerType,
+  });
+
+  if (photoLightboxPointers.size >= 2) {
+    if (photoLightboxGesture?.mode !== "pinch") startPhotoLightboxPinch();
+    const [first, second] = photoLightboxPointerPair();
+    if (!first || !second || !photoLightboxGesture) return;
+
+    const distance = Math.hypot(second.x - first.x, second.y - first.y);
+    const midpointX = (first.x + second.x) / 2;
+    const midpointY = (first.y + second.y) / 2;
+    const rect = photoLightboxStage.getBoundingClientRect();
+    photoLightboxScale = Math.max(
+      1,
+      Math.min(PHOTO_LIGHTBOX_MAX_SCALE, photoLightboxGesture.startScale * distance / photoLightboxGesture.startDistance),
+    );
+    photoLightboxOffsetX = midpointX - rect.left - rect.width / 2 - photoLightboxGesture.contentX * photoLightboxScale;
+    photoLightboxOffsetY = midpointY - rect.top - rect.height / 2 - photoLightboxGesture.contentY * photoLightboxScale;
+    clampPhotoLightboxPan();
+    setPhotoLightboxTransform();
+    return;
+  }
+
+  if (photoLightboxGesture?.mode !== "pan" || photoLightboxGesture.pointerId !== event.pointerId) return;
+  photoLightboxOffsetX = photoLightboxGesture.startOffsetX + event.clientX - photoLightboxGesture.startX;
+  photoLightboxOffsetY = photoLightboxGesture.startOffsetY + event.clientY - photoLightboxGesture.startY;
+  clampPhotoLightboxPan();
+  setPhotoLightboxTransform();
+}
+
+function finishPhotoLightboxPointer(event, allowSwipe) {
+  const point = photoLightboxPointers.get(event.pointerId);
+  if (!point) return;
+  photoLightboxPointers.set(event.pointerId, { ...point, x: event.clientX, y: event.clientY });
+
+  if (allowSwipe && photoLightboxPointers.size === 1 && photoLightboxGesture?.mode === "swipe"
+    && photoLightboxGesture.pointerId === event.pointerId
+    && photoLightboxGesture.pointerType !== "mouse"
+    && photoLightboxScale <= 1.001
+    && photoLightboxUrls.length > 1) {
+    const deltaX = event.clientX - photoLightboxGesture.startX;
+    const deltaY = event.clientY - photoLightboxGesture.startY;
+    if (Math.abs(deltaX) >= PHOTO_LIGHTBOX_SWIPE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY)) {
+      movePhotoLightbox(deltaX < 0 ? 1 : -1);
+    }
+  }
+
+  photoLightboxPointers.delete(event.pointerId);
+  try {
+    if (photoLightboxStage.hasPointerCapture(event.pointerId)) {
+      photoLightboxStage.releasePointerCapture(event.pointerId);
+    }
+  } catch {
+    // The pointer may already have been released by the browser.
+  }
+
+  if (photoLightboxPointers.size >= 2) {
+    startPhotoLightboxPinch();
+  } else if (photoLightboxPointers.size === 1) {
+    const [pointerId, remaining] = [...photoLightboxPointers.entries()][0];
+    photoLightboxGesture = photoLightboxScale > 1.001
+      ? {
+        mode: "pan",
+        pointerId,
+        startX: remaining.x,
+        startY: remaining.y,
+        startOffsetX: photoLightboxOffsetX,
+        startOffsetY: photoLightboxOffsetY,
+      }
+      : { mode: "ignore" };
+  } else {
+    photoLightboxGesture = null;
+  }
+}
+
+function handlePhotoLightboxPointerUp(event) {
+  finishPhotoLightboxPointer(event, true);
+}
+
+function handlePhotoLightboxPointerCancel(event) {
+  finishPhotoLightboxPointer(event, false);
 }
 
 function getEditPhotoEntries(item) {
@@ -5594,8 +5763,10 @@ if (photoLightbox) {
   photoLightboxClose.addEventListener("click", closePhotoLightbox);
   photoLightboxPrevious.addEventListener("click", () => movePhotoLightbox(-1));
   photoLightboxNext.addEventListener("click", () => movePhotoLightbox(1));
-  photoLightboxStage?.addEventListener("touchstart", handlePhotoLightboxTouchStart, { passive: true });
-  photoLightboxStage?.addEventListener("touchend", handlePhotoLightboxTouchEnd, { passive: true });
+  photoLightboxStage?.addEventListener("pointerdown", handlePhotoLightboxPointerDown);
+  photoLightboxStage?.addEventListener("pointermove", handlePhotoLightboxPointerMove);
+  photoLightboxStage?.addEventListener("pointerup", handlePhotoLightboxPointerUp);
+  photoLightboxStage?.addEventListener("pointercancel", handlePhotoLightboxPointerCancel);
   photoLightbox.addEventListener("click", (event) => {
     if (event.target === photoLightbox) closePhotoLightbox();
   });

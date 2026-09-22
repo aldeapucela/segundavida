@@ -2026,7 +2026,7 @@ h2 {
   overflow: hidden;
   border-radius: 0.9rem;
   background: color-mix(in srgb, var(--bg-body) 78%, #000 22%);
-  touch-action: pan-y;
+  touch-action: none;
 }
 
 .photo-lightbox__image {
@@ -2034,6 +2034,11 @@ h2 {
   width: 100%;
   height: min(68svh, 35rem);
   object-fit: contain;
+  transform: translate3d(0, 0, 0) scale(1);
+  transform-origin: center;
+  user-select: none;
+  -webkit-user-drag: none;
+  will-change: transform;
 }
 
 .photo-lightbox__nav {
