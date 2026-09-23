@@ -3297,13 +3297,13 @@ async function loadProfileCatalog(username = state.currentUserUsername) {
   }
 }
 
-async function loadMineItems() {
+async function loadMineItems(attemptId = "") {
   if (!auth?.hasInitData() || !api?.isMineConfigured || typeof api.listMineItems !== "function") {
     return null;
   }
 
   try {
-    const records = await api.listMineItems(auth.getInitData());
+    const records = await api.listMineItems(auth.getInitData(), { attemptId });
     const catalogById = new Map(state.items.map((item) => [item.id, item]));
     const mergedRecords = records.map((item) => {
       const catalogItem = catalogById.get(item.id);
@@ -3814,12 +3814,12 @@ async function reconcilePendingPublish() {
 
   const found = await publishResilience.reconcile({
     publicId: attempt.publicId,
-    load: async () => (await loadMineItems()) ?? [],
+    load: async () => (await loadMineItems(attempt.publicId)) ?? [],
     isComplete: (item) => ["available", "reserved", "completed", "expired"].includes(String(item?.status ?? "").toLowerCase()),
   });
 
   if (found) {
-    const publishedItem = state.myItems.find((item) => item.id === attempt.publicId) ?? found;
+    const publishedItem = state.myItems.find((item) => item.id === found.id) ?? found;
     rememberOwnItem(publishedItem);
     resetPublishedForm();
     showPublishSuccess(publishedItem);

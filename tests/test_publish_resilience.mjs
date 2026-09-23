@@ -8,7 +8,7 @@ await import("../js/publish-resilience.js");
 
 const resilience = globalThis.SecondaVidaPublishResilience;
 
-test("public id is opaque, valid and generated with secure randomness", () => {
+test("retry token is opaque, valid and generated with secure randomness", () => {
   const id = resilience.createPublicId();
   assert.equal(id.length, 16);
   assert.match(id, resilience.PUBLISH_ID_PATTERN);
@@ -36,6 +36,22 @@ test("reconciliation finds the existing item by id without matching title", asyn
   });
   assert.deepEqual(item, { id: "existing-public-id", title: "Título cambiado" });
   assert.equal(calls, 2);
+});
+
+test("reconciliation accepts the server-resolved id for a retry token", async () => {
+  const items = [
+    { id: "unrelated-item" },
+    { id: "server-made-id", status: "available" },
+  ];
+  items.attemptItemId = "server-made-id";
+
+  const found = await resilience.reconcile({
+    publicId: "client-retry-token",
+    delays: [0],
+    load: async () => items,
+  });
+
+  assert.deepEqual(found, items[1]);
 });
 
 test("transport errors include browser and normalized forms", () => {

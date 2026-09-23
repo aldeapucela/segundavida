@@ -7,9 +7,12 @@ n8n está en [`publish-photos.md`](./publish-photos.md).
 
 ## Workflow de n8n
 
-Importa [`sv_publish_item_photos.workflow.json`](./sv_publish_item_photos.workflow.json)
-en n8n. Es el workflow operativo para crear una fila en `sv_items`, validar el
-contenido y subir hasta dos fotos mediante la credencial existente
+El workflow operativo en producción es `Publicar objeto - Segunda vida`
+(`UliSGkqUTu0wVcy6`). El archivo
+[`sv_publish_item_photos.workflow.json`](./sv_publish_item_photos.workflow.json)
+es una referencia histórica: no debe reimportarse sobre producción, porque
+reemplazaría la comprobación de intentos repetidos. El workflow crea la fila,
+valida el contenido y sube hasta dos fotos mediante la credencial existente
 `NocoDB Token account`.
 
 Antes de activarlo:
@@ -65,19 +68,25 @@ y de que deben cumplir las condiciones de SegundaVida. La moderación de n8n
 comprueba el título, la descripción y las imágenes para rechazar publicaciones
 no permitidas, además de contenido ofensivo o spam.
 
-El frontend genera un identificador opaco seguro antes del primer envío y lo
-reutiliza si la conexión falla. El servidor valida su formato y lo escribe en
-`item-id`, que es el único campo de identificador público existente en la tabla
-actual. Si un cliente antiguo no envía `public_id`, n8n conserva el fallback
-actual con `crypto.randomBytes(6).toString('base64url')`.
+El frontend genera una clave aleatoria de reintento de 16 caracteres antes del
+primer envío y la reutiliza si la conexión falla. Aunque el campo del payload
+se llama `public_id` por compatibilidad, **no es el identificador público**:
+n8n combina esa clave y el usuario autenticado mediante una firma privada para
+derivar `item-id`. Los anuncios nuevos reciben ocho caracteres alfanuméricos,
+sin guiones ni barras bajas. La clave de reintento no se guarda en NocoDB ni se
+incluye en las URLs. Si un cliente antiguo no la envía, n8n pide actualizar la
+página.
 
 El identificador no autentica a nadie ni concede permisos. Antes de crear una
-fila, n8n busca ese valor y comprueba que la fila existente pertenece al
+fila, n8n busca el ID derivado y comprueba que la fila existente pertenece al
 `owner_telegram_id` validado por Telegram. Una repetición del mismo intento
 devuelve la publicación existente y no vuelve a subir fotos, notificar ni
 disparar la regeneración estática. Si la fila aún está oculta porque se están
 procesando fotos, responde `publication_pending` para que el frontend siga
-comprobando `/mine`.
+comprobando `/mine`. Ese endpoint puede resolver la clave de reintento a una
+publicación propia sin exponer la clave ni permitir al cliente elegir el ID.
+Los IDs antiguos, incluidos los de 16 caracteres ya publicados, permanecen
+inalterados para no romper sus enlaces.
 
 Las filas antiguas que tengan un `item-id` como
 `sv-2191395-1786900112374` deben editarse una vez en NocoDB y recibir un valor

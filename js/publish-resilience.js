@@ -14,6 +14,7 @@
       .replace(/=+$/g, "");
   }
 
+  // Nombre histórico: este valor identifica el intento; n8n deriva el ID público.
   function createPublicId() {
     if (!root.crypto?.getRandomValues || typeof root.btoa !== "function") {
       throw new Error("secure_random_unavailable");
@@ -51,7 +52,10 @@
       if (shouldStop()) return null;
       try {
         const items = await load();
-        const found = (Array.isArray(items) ? items : []).find((item) => String(item?.id ?? "") === publicId);
+        const expectedId = typeof items?.attemptItemId === "string" && items.attemptItemId
+          ? items.attemptItemId
+          : publicId;
+        const found = (Array.isArray(items) ? items : []).find((item) => String(item?.id ?? "") === expectedId);
         if (found && isComplete(found)) return found;
       } catch {
         // La comprobación usa el mismo canal que falló; seguimos intentando

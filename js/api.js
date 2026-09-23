@@ -123,12 +123,12 @@ function parseItemsPayload(payload, options = {}) {
   return records.map((record) => normalizeItem(record, options));
 }
 
-async function listMineItems(initData) {
+async function listMineItems(initData, { attemptId = "" } = {}) {
   if (!N8N_MINE_URL) {
     return [];
   }
 
-  const sessionKey = String(initData ?? "");
+  const sessionKey = JSON.stringify([String(initData ?? ""), String(attemptId ?? "")]);
   if (mineInFlight && mineInFlightSession === sessionKey) {
     return mineInFlight;
   }
@@ -140,7 +140,7 @@ async function listMineItems(initData) {
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ initData }),
+      body: JSON.stringify({ initData, ...(attemptId ? { attempt_id: attemptId } : {}) }),
     });
 
     const payload = await response.json();
@@ -150,6 +150,9 @@ async function listMineItems(initData) {
       throw new Error(payload?.error ?? `n8n respondió con HTTP ${response.status}`);
     }
 
+    records.attemptItemId = typeof payload.attempt_item_id === "string"
+      ? payload.attempt_item_id
+      : null;
     return records;
   })();
 
