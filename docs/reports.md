@@ -98,7 +98,10 @@ muestra el nombre visible como enlace al perfil cuando Telegram lo permite.
 Después de guardar correctamente la incidencia en NocoDB, el workflow envía un
 aviso HTML al grupo de administradores `-1002671330741`, en el hilo `1380`.
 El aviso incluye la publicación, el motivo, los detalles, la persona que
-reporta y el enlace de revisión. Si Telegram no consigue enviar el aviso, la
+reporta y el enlace de revisión. En «Publicado por» se enlaza el nombre de
+usuario público de Telegram del autor cuando existe y tiene un formato válido;
+en caso contrario solo se muestra su nombre visible, sin incluir su ID
+numérico privado. Si Telegram no consigue enviar el aviso, la
 incidencia no se pierde: el nodo está configurado para continuar porque el
 guardado en NocoDB es la operación principal.
 
